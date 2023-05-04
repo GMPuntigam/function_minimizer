@@ -1,0 +1,11 @@
+[package]
+name = "function_minimizer"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+set_genome = "0.6.1"
+favannat = "0.6.1"
+rand = "0.8.5"
