@@ -4,6 +4,7 @@ use rand::{
     seq::SliceRandom,
     thread_rng,
 };
+use rayon::prelude::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use set_genome::{activations::Activation, Genome, Mutations, Parameters, Structure};
 
 const STEPS: usize = 100;
@@ -50,7 +51,7 @@ fn main() {
         // ## Evaluate current nets
 
         let mut population_fitnesses = current_population
-            .iter()
+            .par_iter()
             .map(evaluate_net_fitness)
             .enumerate()
             .collect::<Vec<_>>();
