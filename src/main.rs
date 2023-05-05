@@ -12,8 +12,8 @@ use set_genome::{activations::Activation, Genome, Mutations, Parameters, Structu
 use std::fs;
 
 const STEPS: usize = 10;
-const POPULATION_SIZE: usize = 100;
-const GENERATIONS: usize = 100;
+const POPULATION_SIZE: usize = 1000;
+const GENERATIONS: usize = 200;
 fn main() {
     let parameters = Parameters {
         structure: Structure::basic(2, 1),
@@ -37,8 +37,10 @@ fn main() {
                     Activation::Relu,
                 ],
             },
-            Mutations::AddConnection { chance: 0.3 },
+            Mutations::AddConnection { chance: 0.2 },
             Mutations::AddRecurrentConnection { chance: 0.01 },
+            Mutations::RemoveConnection { chance: 0.05 },
+            Mutations::RemoveNode { chance: 0.05 }
         ],
     };
 
@@ -96,7 +98,7 @@ fn main() {
     let mut evaluator = MatrixRecurrentFabricator::fabricate(&champion).expect("didnt work");
     let delta1=evaluator.evaluate(input_values_left)[0];
     let delta2=evaluator.evaluate(input_values_right)[0];
-    let contents = String::from(format!("{x_val1},{delta1}\n{x_val2},{delta2}",x_val1 = x1, x_val2 = x2, delta1 = delta1, delta2 = delta2));
+    let contents = String::from(format!("XVals,Delta\n{x_val1},{delta1}\n{x_val2},{delta2}",x_val1 = x1, x_val2 = x2, delta1 = delta1, delta2 = delta2));
     fs::write("data/out.txt", contents).expect("Unable to write file");
     print!("Champion Delta x from right side: {}\n", delta1);
     
@@ -116,8 +118,7 @@ fn evaluate_net_fitness(net: &Genome) -> (f64, f64) {
         let mut evaluator = MatrixRecurrentFabricator::fabricate(net).expect("didnt work");
 
         for _ in 0..STEPS {
-            let mut input_values = x.clone();
-            input_values.push(sub::func1(x[0]).clone());
+            let input_values = vec![x[0], sub::func1(x[0]).clone()];
             x[0] = x[0] + evaluator.evaluate(input_values)[0];
         }
 
