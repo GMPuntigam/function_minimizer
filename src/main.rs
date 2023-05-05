@@ -11,7 +11,7 @@ use set_genome::{activations::Activation, Genome, Mutations, Parameters, Structu
 const STEPS: usize = 10;
 const POPULATION_SIZE: usize = 100;
 const GENERATIONS: usize = 100;
-const X_SQUARE: fn(f64) -> f64 = |x| 0.5 * x.powi(4) - 0.7 * x.powi(2) + 0.1 * x;
+const FUNCTION_HANDLE: fn(f64) -> f64 = |x| 0.5 * x.powi(4) - 0.7 * x.powi(2) + 0.1 * x;
 
 fn main() {
     let parameters = Parameters {
@@ -89,9 +89,9 @@ fn main() {
 
     print!("{}", net_as_dot(&champion));
     let mut evaluator = MatrixRecurrentFabricator::fabricate(&champion).expect("didnt work");
-    let mut input_values = vec![0.0, X_SQUARE(0.0)];
+    let mut input_values = vec![0.0, FUNCTION_HANDLE(0.0)];
     print!("Champion Delta x from right side: {}\n", &evaluator.evaluate(input_values)[0]);
-    input_values = vec![-3.0, X_SQUARE(-3.3)];
+    input_values = vec![-3.0, FUNCTION_HANDLE(-3.3)];
     print!("Champion Delta x from left side: {}\n", &evaluator.evaluate(input_values)[0]);
 }
 
@@ -108,12 +108,12 @@ fn evaluate_net_fitness(net: &Genome) -> (f64, f64) {
 
         for _ in 0..STEPS {
             let mut input_values = x.clone();
-            input_values.push(X_SQUARE(x[0]).clone());
+            input_values.push(FUNCTION_HANDLE(x[0]).clone());
             x[0] = x[0] + evaluator.evaluate(input_values)[0];
         }
 
         x_values.push(x[0]);
-        fitness_values.push(X_SQUARE(x[0]));
+        fitness_values.push(FUNCTION_HANDLE(x[0]));
     }
 
     (
