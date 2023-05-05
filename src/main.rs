@@ -1,20 +1,21 @@
-use favannat::{Evaluator, Fabricator, MatrixFeedforwardFabricator};
+use favannat::{Evaluator, Fabricator, MatrixRecurrentFabricator, StatefulFabricator, StatefulEvaluator};
 use rand::{
     distributions::{Distribution, Uniform},
     seq::SliceRandom,
     thread_rng,
 };
+use std::cmp::Ordering;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use set_genome::{activations::Activation, Genome, Mutations, Parameters, Structure};
 
-const STEPS: usize = 100;
-const POPULATION_SIZE: usize = 1000;
-const GENERATIONS: usize = 10;
+const STEPS: usize = 10;
+const POPULATION_SIZE: usize = 100;
+const GENERATIONS: usize = 100;
 const X_SQUARE: fn(f64) -> f64 = |x| 0.5 * x.powi(4) - 0.7 * x.powi(2) + 0.1 * x;
 
 fn main() {
     let parameters = Parameters {
-        structure: Structure::basic(1, 1),
+        structure: Structure::basic(2, 1),
         mutations: vec![
             Mutations::ChangeWeights {
                 chance: 1.0,
@@ -36,6 +37,7 @@ fn main() {
                 ],
             },
             Mutations::AddConnection { chance: 0.3 },
+            Mutations::AddRecurrentConnection { chance: 0.01 },
         ],
     };
 
@@ -55,14 +57,18 @@ fn main() {
             .map(evaluate_net_fitness)
             .enumerate()
             .collect::<Vec<_>>();
-
-        population_fitnesses.sort_unstable_by(|a, b| a.1 .1.partial_cmp(&b.1 .1).unwrap());
+        population_fitnesses.sort_unstable_by(|a, b| match (a.1 .1.is_nan(), b.1 .1.is_nan()) {
+            (true, true) => Ordering::Equal,
+            (true, false) => Ordering::Greater,
+            (false, true) => Ordering::Less,
+            (false, false) => a.1 .1.partial_cmp(&b.1 .1).unwrap(),
+        });
 
         // ## Reproduce best nets
 
         let mut new_population = Vec::with_capacity(POPULATION_SIZE);
 
-        for &(index, _) in population_fitnesses.iter().take(100) {
+        for &(index, _) in population_fitnesses.iter().take(POPULATION_SIZE/10) {
             new_population.push(current_population[index].clone());
         }
 
@@ -82,6 +88,11 @@ fn main() {
     dbg!(&champion);
 
     print!("{}", net_as_dot(&champion));
+    let mut evaluator = MatrixRecurrentFabricator::fabricate(&champion).expect("didnt work");
+    let mut input_values = vec![0.0, X_SQUARE(0.0)];
+    print!("Champion Delta x from right side: {}\n", &evaluator.evaluate(input_values)[0]);
+    input_values = vec![-3.0, X_SQUARE(-3.3)];
+    print!("Champion Delta x from left side: {}\n", &evaluator.evaluate(input_values)[0]);
 }
 
 fn evaluate_net_fitness(net: &Genome) -> (f64, f64) {
@@ -93,10 +104,12 @@ fn evaluate_net_fitness(net: &Genome) -> (f64, f64) {
 
     for _ in 0..STEPS {
         let mut x = vec![between.sample(&mut rng)];
-        let evaluator = MatrixFeedforwardFabricator::fabricate(net).expect("didnt work");
+        let mut evaluator = MatrixRecurrentFabricator::fabricate(net).expect("didnt work");
 
         for _ in 0..STEPS {
-            x[0] = x[0] + evaluator.evaluate(x.clone())[0];
+            let mut input_values = x.clone();
+            input_values.push(X_SQUARE(x[0]).clone());
+            x[0] = x[0] + evaluator.evaluate(input_values)[0];
         }
 
         x_values.push(x[0]);
