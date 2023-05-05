@@ -1,3 +1,5 @@
+mod sub;
+
 use favannat::{Evaluator, Fabricator, MatrixRecurrentFabricator, StatefulFabricator, StatefulEvaluator};
 use rand::{
     distributions::{Distribution, Uniform},
@@ -7,12 +9,11 @@ use rand::{
 use std::cmp::Ordering;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use set_genome::{activations::Activation, Genome, Mutations, Parameters, Structure};
+use std::fs;
 
 const STEPS: usize = 10;
 const POPULATION_SIZE: usize = 100;
 const GENERATIONS: usize = 100;
-const FUNCTION_HANDLE: fn(f64) -> f64 = |x| 0.5 * x.powi(4) - 0.7 * x.powi(2) + 0.1 * x;
-
 fn main() {
     let parameters = Parameters {
         structure: Structure::basic(2, 1),
@@ -88,12 +89,20 @@ fn main() {
     dbg!(&champion);
 
     print!("{}", net_as_dot(&champion));
+    let x1= 0.0;
+    let x2= -3.0;
+    let input_values_right = vec![x1, sub::func1(x1)];
+    let input_values_left = vec![x2, sub::func1(x2)];
     let mut evaluator = MatrixRecurrentFabricator::fabricate(&champion).expect("didnt work");
-    let mut input_values = vec![0.0, FUNCTION_HANDLE(0.0)];
-    print!("Champion Delta x from right side: {}\n", &evaluator.evaluate(input_values)[0]);
-    input_values = vec![-3.0, FUNCTION_HANDLE(-3.3)];
-    print!("Champion Delta x from left side: {}\n", &evaluator.evaluate(input_values)[0]);
+    let delta1=evaluator.evaluate(input_values_left)[0];
+    let delta2=evaluator.evaluate(input_values_right)[0];
+    let contents = String::from(format!("{x_val1},{delta1}\n{x_val2},{delta2}",x_val1 = x1, x_val2 = x2, delta1 = delta1, delta2 = delta2));
+    fs::write("data/out.txt", contents).expect("Unable to write file");
+    print!("Champion Delta x from right side: {}\n", delta1);
+    
+    print!("Champion Delta x from left side: {}\n", delta2);
 }
+
 
 fn evaluate_net_fitness(net: &Genome) -> (f64, f64) {
     let between = Uniform::from(-100.0..100.0);
@@ -108,12 +117,12 @@ fn evaluate_net_fitness(net: &Genome) -> (f64, f64) {
 
         for _ in 0..STEPS {
             let mut input_values = x.clone();
-            input_values.push(FUNCTION_HANDLE(x[0]).clone());
+            input_values.push(sub::func1(x[0]).clone());
             x[0] = x[0] + evaluator.evaluate(input_values)[0];
         }
 
         x_values.push(x[0]);
-        fitness_values.push(FUNCTION_HANDLE(x[0]));
+        fitness_values.push(sub::func1(x[0]));
     }
 
     (
