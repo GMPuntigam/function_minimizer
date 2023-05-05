@@ -12,11 +12,11 @@ use set_genome::{activations::Activation, Genome, Mutations, Parameters, Structu
 use std::fs;
 
 const STEPS: usize = 10;
-const POPULATION_SIZE: usize = 1000;
-const GENERATIONS: usize = 200;
+const POPULATION_SIZE: usize = 100;
+const GENERATIONS: usize = 300;
 fn main() {
     let parameters = Parameters {
-        structure: Structure::basic(2, 1),
+        structure: Structure::basic(4, 1),
         mutations: vec![
             Mutations::ChangeWeights {
                 chance: 1.0,
@@ -39,7 +39,7 @@ fn main() {
             },
             Mutations::AddConnection { chance: 0.2 },
             Mutations::AddRecurrentConnection { chance: 0.01 },
-            Mutations::RemoveConnection { chance: 0.05 },
+            Mutations::RemoveConnection { chance: 0.15 },
             Mutations::RemoveNode { chance: 0.05 }
         ],
     };
@@ -51,10 +51,10 @@ fn main() {
     }
 
     let mut champion = current_population[0].clone();
-
+    // let mut summed_diff = 0.0;
     for _ in 0..GENERATIONS {
         // ## Evaluate current nets
-
+        
         let mut population_fitnesses = current_population
             .par_iter()
             .map(evaluate_net_fitness)
@@ -83,19 +83,33 @@ fn main() {
         }
 
         champion = current_population[population_fitnesses[0].0].clone();
+        // let mut fitness_delta = population_fitnesses.iter().as_slice().sum() ;
         current_population = new_population;
-
+        
         dbg!(population_fitnesses.iter().take(10).collect::<Vec<_>>());
     }
-
-    dbg!(&champion);
-
     print!("{}", net_as_dot(&champion));
     let x1= 0.0;
-    let x2= -3.0;
-    let input_values_right = vec![x1, sub::func1(x1)];
-    let input_values_left = vec![x2, sub::func1(x2)];
+    let x12= 0.5;
+    let x2= -2.0;
+    let x22= -2.5;
+    let input_values_right = vec![x1, sub::func1(x1), x12, sub::func1(x12)];
+    let input_values_left = vec![x2, sub::func1(x2), x22, sub::func1(x22)];
     let mut evaluator = MatrixRecurrentFabricator::fabricate(&champion).expect("didnt work");
+    let mut x_eval = x1;
+    for _ in 0..STEPS {
+        let input_values = vec![x_eval, sub::func1(x_eval).clone(), x12, sub::func1(x12)];
+            let delta = evaluator.evaluate(input_values)[0];
+            x_eval = x_eval + delta;
+            print!("Champion Walk x from right side: {}\n", x_eval);
+    }
+    let mut x_eval = x2;
+    for _ in 0..STEPS {
+        let input_values = vec![x_eval, sub::func1(x_eval).clone(), x22, sub::func1(x22)];
+            let delta = evaluator.evaluate(input_values)[0];
+            x_eval = x_eval + delta;
+            print!("Champion Walk x from left side: {}\n", x_eval);
+    }
     let delta1=evaluator.evaluate(input_values_left)[0];
     let delta2=evaluator.evaluate(input_values_right)[0];
     let contents = String::from(format!("XVals,Delta\n{x_val1},{delta1}\n{x_val2},{delta2}",x_val1 = x1, x_val2 = x2, delta1 = delta1, delta2 = delta2));
@@ -105,6 +119,17 @@ fn main() {
     print!("Champion Delta x from left side: {}\n", delta2);
 }
 
+fn median(numbers: &mut Vec<f64>) -> f64 {
+    numbers.sort_unstable_by(|a, b| match (a.is_nan(), b.is_nan()) {
+        (true, true) => Ordering::Equal,
+        (true, false) => Ordering::Greater,
+        (false, true) => Ordering::Less,
+        (false, false) => a.partial_cmp(b).unwrap(),
+    });
+    let mid = numbers.len() / 2;
+    numbers[mid]
+}
+
 
 fn evaluate_net_fitness(net: &Genome) -> (f64, f64) {
     let between = Uniform::from(-100.0..100.0);
@@ -112,23 +137,25 @@ fn evaluate_net_fitness(net: &Genome) -> (f64, f64) {
 
     let mut x_values = Vec::with_capacity(STEPS);
     let mut fitness_values = Vec::with_capacity(STEPS);
-
     for _ in 0..STEPS {
-        let mut x = vec![between.sample(&mut rng)];
+        let x_start = vec![between.sample(&mut rng), between.sample(&mut rng)];
         let mut evaluator = MatrixRecurrentFabricator::fabricate(net).expect("didnt work");
-
+        let mut x1 = x_start[0].clone();
+        let mut x2 = x_start[1].clone();
         for _ in 0..STEPS {
-            let input_values = vec![x[0], sub::func1(x[0]).clone()];
-            x[0] = x[0] + evaluator.evaluate(input_values)[0];
+            let input_values = vec![x1, sub::func1(x1).clone(), x2, sub::func1(x2).clone()];
+            let delta = evaluator.evaluate(input_values)[0];
+            x1 = x1 + delta;
         }
-
-        x_values.push(x[0]);
-        fitness_values.push(sub::func1(x[0]));
+        let delta_f = (sub::func1(x_start[0]) - sub::func1(x1))/sub::func1(x_start[0]);
+        x_values.push(x1);
+        fitness_values.push(sub::func1(x1) + delta_f.abs().exp());
     }
-
+    // dbg!(&delta_f_values);
     (
         x_values.iter().sum::<f64>() / STEPS as f64,
-        fitness_values.iter().sum::<f64>() / STEPS as f64,
+        median(&mut fitness_values) as f64,
+      
     )
 }
 
