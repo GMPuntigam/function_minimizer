@@ -10,11 +10,11 @@ use std::{cmp::Ordering, fs, f32::INFINITY};
 use rayon::prelude::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use set_genome::{Genome, Parameters, Structure, Mutations, activations::Activation};
 
-const STEPS: usize = 10;
+const STEPS: usize = 12;
 const N_TRYS: usize = 10;
-const SAMPLEPOINTS: usize = 10;
+const SAMPLEPOINTS: usize = 6;
 const POPULATION_SIZE: usize = 1000;
-const GENERATIONS: usize = 2000;
+const GENERATIONS: usize = 500;
 const MAXDEV: f32 = 10.0;
 
 #[derive(Debug)]
@@ -64,9 +64,9 @@ fn main() {
 
     let mut champion = current_population[0].clone();
     // let mut summed_diff = 0.0;
-    for _ in 0..GENERATIONS {
+    for gen_iter in 0..GENERATIONS {
         // ## Evaluate current nets
-        
+        print!("Generation {} of {}\n",gen_iter, GENERATIONS);
         let mut population_fitnesses = current_population
             .par_iter()
             .map(evaluate_net_fitness)
@@ -98,7 +98,7 @@ fn main() {
         // let mut fitness_delta = population_fitnesses.iter().as_slice().sum() ;
         current_population = new_population;
         
-        dbg!(population_fitnesses.iter().take(10).collect::<Vec<_>>());
+        dbg!(population_fitnesses.iter().take(1).collect::<Vec<_>>());
         // dbg!(&population_fitnesses[0].0);
         // print!("Best fitness: {}", &population_fitnesses[0].0)
     }
@@ -114,16 +114,21 @@ fn main() {
     let mut x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
     // for _ in 0..N_TRYS {
     let mut evaluator = MatrixRecurrentFabricator::fabricate(&champion).expect("didnt work");
-    for _ in 0..STEPS {
+    for step in 0..STEPS {
         let input_values: Vec<f32> = [x_vals, f_vals].concat();
         let prediction: Vec<f64> = evaluator.evaluate(input_values.clone().iter().map(|x | *x as f64).collect() );
         x_guess = prediction[0] as f32*(x_max-x_min) + x_min;
-        // x_minus = x_minus+ x_minus*(prediction[1]-0.5);
-        // x_plus = x_plus+ x_plus*(prediction[2]-0.5);
-        x_minus = MAXDEV * prediction[1]as f32;
-        x_plus = MAXDEV * prediction[0]as f32;
+        x_minus = x_minus+ x_minus*(prediction[1]as f32-0.5);
+        x_plus = x_plus+ x_plus*(prediction[2]as f32-0.5);
+        let prediction =Prediction {
+            fitness: sub::func1(x_guess) + x_minus.abs() + x_plus.abs(),
+            x_guess: x_guess,
+            x_plus: x_plus,
+            x_minus: x_minus};
+        // x_minus = MAXDEV * prediction[1]as f32;
+        // x_plus = MAXDEV * prediction[0]as f32;
         // dbg!([x_guess, x_minus, x_plus]);
-        print!("Champion from prediction: {}\n", x_guess);
+        print!("Champion Step {}: {:?}\n",step, prediction);
         between = Uniform::from(x_guess - x_minus.abs()..x_guess +x_plus.abs());
         x_vals = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
         x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -155,8 +160,8 @@ fn evaluate_net_fitness(net: &Genome) -> (Prediction) {
         let mut x_vals: Vec<f32>  = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
         x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let mut f_vals = x_vals.iter().enumerate().map(|(_, x)| sub::func1(*x).clone()).collect::<Vec<_>>();
-        let f_max = f_vals.iter().copied().fold(f32::NAN, f32::max);
-        f_vals = f_vals.iter().enumerate().map(|(_, x)| *x/f_max).collect::<Vec<_>>();
+        // let f_max = f_vals.iter().copied().fold(f32::NAN, f32::max);
+        // f_vals = f_vals.iter().enumerate().map(|(_, x)| *x/f_max).collect::<Vec<_>>();
         let mut x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
         let mut x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
         for _ in 0..STEPS {
@@ -182,7 +187,7 @@ fn evaluate_net_fitness(net: &Genome) -> (Prediction) {
             lower_range_limit = x_guess - x_minus.abs();
             upper_range_limit = x_guess + x_plus.abs();
             if upper_range_limit - lower_range_limit == f32::INFINITY {
-                dbg!([x_guess, x_minus, x_plus]);
+                // dbg!([x_guess, x_minus, x_plus]);
                 return Prediction {
                     fitness: f32::INFINITY,
                     x_guess: f32::INFINITY,
