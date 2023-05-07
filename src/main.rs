@@ -1,6 +1,6 @@
 mod sub;
 
-use favannat::{MatrixRecurrentFabricator, StatefulFabricator, StatefulEvaluator};
+use favannat::{MatrixRecurrentFabricator, StatefulFabricator, StatefulEvaluator, MatrixRecurrentEvaluator};
 use rand::{
     distributions::{Uniform},
     seq::SliceRandom,
@@ -12,12 +12,13 @@ use std::{cmp::Ordering, fs};
 use rayon::prelude::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use set_genome::{Genome, Parameters, Structure, Mutations, activations::Activation};
 
-const STEPS: usize = 4;
+const STEPS: usize = 20;
 const N_TRYS: usize = 10;
+const N_TESTFUNCTIONS: usize =2;
 const SAMPLEPOINTS: usize = 6;
 const POPULATION_SIZE: usize = 1000;
 const GENERATIONS: usize = 500;
-const MAXDEV: f32 = 10.0;
+const MAXDEV: f32 = 100.0;
 
 #[derive(Debug)]
 pub struct Prediction{
@@ -26,6 +27,29 @@ pub struct Prediction{
     x_minus: f32,
     x_plus: f32
 }
+#[derive(Debug, Copy, Clone)]
+pub struct FitnessEval{
+    fitness: f32,
+    x_worst: f32,
+    x_minus: f32,
+    x_plus: f32
+}
+
+
+
+#[derive(Debug)]
+pub struct TestfunctionEval{
+    fitnessEval: FitnessEval,
+    functionName: String,
+}
+
+#[derive(Debug)]
+pub struct OverallFitness{
+    fitness: f32,
+    fitnessvec: Vec<TestfunctionEval>
+}
+
+
 fn main() {
     // env::set_var("RUST_BACKTRACE", "1");
     let parameters = Parameters {
@@ -104,18 +128,19 @@ fn main() {
         // dbg!(&population_fitnesses[0].0);
         // print!("Best fitness: {}", &population_fitnesses[0].0)
     }
-    print!("{}", net_as_dot(&champion));
-    evaluate_champion(&champion);
+    print!("{}", Genome::dot(&champion));
+    evaluate_champion(&champion, sub::func1, "data/powerfour.txt");
+    evaluate_champion(&champion, sub::func2, "data/quadratic_sinus.txt");
     
 }
 
-fn evaluate_champion(champion: &Genome) {
+fn evaluate_champion(champion: &Genome, f: fn(f32) -> f32, filepath: &str) {
     let contents = String::from(format!("XVal,x-plus,x-minus\n"));
-    fs::write("data/out.txt", contents).expect("Unable to write file");
+    fs::write(filepath, contents).expect("Unable to write file");
     let mut file = OpenOptions::new()
         .write(true)
         .append(true)
-        .open("data/out.txt")
+        .open(filepath)
         .unwrap();
     let mut x_guess: f32 = 0.0;
     let mut x_minus: f32 = MAXDEV;
@@ -123,7 +148,7 @@ fn evaluate_champion(champion: &Genome) {
     let mut between: Uniform<f32> = Uniform::from(x_guess - x_minus.abs()..x_guess +x_plus.abs());
     let mut x_vals: Vec<f32> = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
     x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let mut f_vals: Vec<f32> = x_vals.iter().enumerate().map(|(_, x)| sub::func1(*x).clone()).collect::<Vec<_>>();
+    let mut f_vals: Vec<f32> = x_vals.iter().enumerate().map(|(_, x)| sub::func2(*x).clone()).collect::<Vec<_>>();
     let mut x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
     let mut x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
     // for _ in 0..N_TRYS {
@@ -135,7 +160,7 @@ fn evaluate_champion(champion: &Genome) {
         x_minus = x_minus+ x_minus*(prediction[1]as f32-0.5);
         x_plus = x_plus+ x_plus*(prediction[2]as f32-0.5);
         let prediction =Prediction {
-            fitness: sub::func1(x_guess) + x_minus.abs() + x_plus.abs(),
+            fitness: f(x_guess) + x_minus.abs() + x_plus.abs(),
             x_guess: x_guess,
             x_plus: x_plus.abs(),
             x_minus: x_minus.abs()};
@@ -143,7 +168,7 @@ fn evaluate_champion(champion: &Genome) {
         between = Uniform::from(x_guess - x_minus.abs()..x_guess +x_plus.abs());
         x_vals = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
         x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        f_vals = x_vals.iter().enumerate().map(|(_, x)| sub::func1(*x).clone()).collect::<Vec<_>>();
+        f_vals = x_vals.iter().enumerate().map(|(_, x)| sub::func2(*x).clone()).collect::<Vec<_>>();
         x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
         x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
         // let contents = String::from(format!());
@@ -156,14 +181,12 @@ fn evaluate_champion(champion: &Genome) {
 }
 
 
-fn evaluate_net_fitness(net: &Genome) -> (Prediction) {
+fn evaluate_on_testfunction(f: fn(f32) -> f32, mut evaluator:  MatrixRecurrentEvaluator) -> FitnessEval {
+    let mut fitness_vec= Vec::with_capacity(N_TRYS);
     let mut x_guess: f32;
     let mut x_worst: f32 = 0.0;
     let mut x_minus: f32 = MAXDEV;
     let mut x_plus: f32 = MAXDEV;
-    // let mut x_guess_vec= Vec::with_capacity(N_TRYS);
-    let mut fitness_vec= Vec::with_capacity(N_TRYS);
-    let mut evaluator = MatrixRecurrentFabricator::fabricate(net).expect("didnt work");
     for _ in 0..N_TRYS {
         x_guess = 0.0;
         x_minus = MAXDEV;
@@ -173,7 +196,7 @@ fn evaluate_net_fitness(net: &Genome) -> (Prediction) {
         let mut between = Uniform::from(lower_range_limit..upper_range_limit);
         let mut x_vals: Vec<f32>  = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
         x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let mut f_vals = x_vals.iter().enumerate().map(|(_, x)| sub::func1(*x).clone()).collect::<Vec<_>>();
+        let mut f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone()).collect::<Vec<_>>();
         // let f_max = f_vals.iter().copied().fold(f32::NAN, f32::max);
         // f_vals = f_vals.iter().enumerate().map(|(_, x)| *x/f_max).collect::<Vec<_>>();
         let mut x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
@@ -185,9 +208,9 @@ fn evaluate_net_fitness(net: &Genome) -> (Prediction) {
             x_minus = x_minus+ x_minus*((prediction[1]as f32)-0.5);
             x_plus = x_plus+ x_plus*((prediction[2]as f32)-0.5);
             if x_guess.is_nan() || x_minus.is_nan()|| x_plus.is_nan(){
-                return Prediction {
+                return FitnessEval {
                     fitness: f32::INFINITY,
-                    x_guess: f32::INFINITY,
+                    x_worst: f32::INFINITY,
                     x_plus: f32::INFINITY,
                     x_minus: f32::INFINITY};
             }
@@ -198,61 +221,82 @@ fn evaluate_net_fitness(net: &Genome) -> (Prediction) {
             upper_range_limit = x_guess + x_plus.abs();
             if upper_range_limit - lower_range_limit == f32::INFINITY {
                 // dbg!([x_guess, x_minus, x_plus]);
-                return Prediction {
+                return FitnessEval {
                     fitness: f32::INFINITY,
-                    x_guess: f32::INFINITY,
+                    x_worst: f32::INFINITY,
                     x_plus: f32::INFINITY,
                     x_minus: f32::INFINITY};
             }
             if lower_range_limit >= upper_range_limit{
                 // dbg!([lower_range_limit,x_guess, upper_range_limit]);
                 x_vals = vec![x_guess; SAMPLEPOINTS];
-                f_vals = x_vals.iter().enumerate().map(|(_, x)| sub::func1(*x).clone()).collect::<Vec<_>>();
+                f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone()).collect::<Vec<_>>();
             } else {
                 between = Uniform::from(lower_range_limit..upper_range_limit);
                 x_vals = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
                 x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-                f_vals = x_vals.iter().enumerate().map(|(_, x)| sub::func1(*x).clone()).collect::<Vec<_>>();
+                f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone()).collect::<Vec<_>>();
             }
             
             
             x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
             x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
         }
-        if sub::func1(x_guess) > sub::func1(x_worst)
+        if f(x_guess) > f(x_worst)
         {
             x_worst = x_guess;
         }
         
-        fitness_vec.push(sub::func1(x_guess) + x_minus.abs() + x_plus.abs());
-    }
-    
-    // dbg!(&delta_f_values);
-    let fitness = fitness_vec.iter().copied().fold(f32::NAN, f32::max);
-    
-    Prediction {
-        fitness: fitness,
-        x_guess: x_worst,
-        x_plus: x_plus.abs(),
-        x_minus: x_minus.abs()}
+        fitness_vec.push(f(x_guess) + (x_minus.abs() + x_plus.abs())*0.25);
         
-
+    }
+    let fitness = fitness_vec.iter().copied().fold(f32::NAN, f32::max);
+    FitnessEval{
+        fitness: fitness,
+        x_worst: x_worst,
+        x_plus: x_plus.abs(),
+        x_minus: x_minus.abs()
+    }
 }
 
-fn net_as_dot(net: &Genome) -> String {
-    let mut dot = "digraph {\n".to_owned();
-
-    for node in net.nodes() {
-        dot.push_str(&format!("{} [label={:?}];\n", node.id.0, node.activation));
-    }
-
-    for connection in net.connections() {
-        dot.push_str(&format!(
-            "{} -> {} [label={:?}];\n",
-            connection.input.0, connection.output.0, connection.weight
-        ));
-    }
-
-    dot.push_str("}\n");
-    dot
+fn evaluate_net_fitness(net: &Genome) -> OverallFitness {
+    let mut fitness_vec: Vec<FitnessEval>= Vec::with_capacity(N_TESTFUNCTIONS);
+    // let mut x_guess_vec= Vec::with_capacity(N_TRYS);
+    
+    let mut evaluator = MatrixRecurrentFabricator::fabricate(net).expect("didnt work");
+    let mut fitness = evaluate_on_testfunction(sub::func1, evaluator);
+    fitness_vec.push(fitness);
+    evaluator = MatrixRecurrentFabricator::fabricate(net).expect("didnt work");
+    fitness = evaluate_on_testfunction(sub::func2, evaluator);
+    fitness_vec.push(fitness);
+    // dbg!(&delta_f_values);
+    fitness_vec.sort_by(|a, b| a.fitness.partial_cmp(&b.fitness).unwrap());
+    OverallFitness{
+        fitness: fitness_vec[1].fitness,
+        fitnessvec: vec![TestfunctionEval {
+            fitnessEval: fitness_vec[0],
+            functionName: String::from("Power four")
+        } ,
+        TestfunctionEval {
+            fitnessEval:fitness_vec[1],
+            functionName: String::from("Quadratic Sinus")
+        }]}        
 }
+
+// fn net_as_dot(net: &Genome) -> String {
+//     let mut dot = "digraph {\n".to_owned();
+
+//     for node in net.nodes() {
+//         dot.push_str(&format!("{} [label={:?}];\n", node.id.0, node.activation));
+//     }
+
+//     for connection in net.connections() {
+//         dot.push_str(&format!(
+//             "{} -> {} [label={:?}];\n",
+//             connection.input.0, connection.output.0, connection.weight
+//         ));
+//     }
+
+//     dot.push_str("}\n");
+//     dot
+// }

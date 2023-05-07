@@ -514,9 +514,9 @@ dependencies = [
 
 [[package]]
 name = "set_genome"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5be8c7226a10c5381565b9dae54666eee5e6120ed09e05c76a036a1e52104d50"
+checksum = "464bff2f78a90ea10880964510c28dbb90dbe93a7ee2dfe89de7203fbd54faa2"
 dependencies = [
  "config",
  "favannat",
