@@ -6,11 +6,13 @@ use rand::{
     seq::SliceRandom,
     thread_rng, Rng,
 };
-use std::{cmp::Ordering, fs, f32::INFINITY};
+use std::fs::OpenOptions;
+use std::io::prelude::*;
+use std::{cmp::Ordering, fs};
 use rayon::prelude::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use set_genome::{Genome, Parameters, Structure, Mutations, activations::Activation};
 
-const STEPS: usize = 12;
+const STEPS: usize = 4;
 const N_TRYS: usize = 10;
 const SAMPLEPOINTS: usize = 6;
 const POPULATION_SIZE: usize = 1000;
@@ -103,6 +105,18 @@ fn main() {
         // print!("Best fitness: {}", &population_fitnesses[0].0)
     }
     print!("{}", net_as_dot(&champion));
+    evaluate_champion(&champion);
+    
+}
+
+fn evaluate_champion(champion: &Genome) {
+    let contents = String::from(format!("XVal,x-plus,x-minus\n"));
+    fs::write("data/out.txt", contents).expect("Unable to write file");
+    let mut file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open("data/out.txt")
+        .unwrap();
     let mut x_guess: f32 = 0.0;
     let mut x_minus: f32 = MAXDEV;
     let mut x_plus: f32 = MAXDEV;
@@ -113,7 +127,7 @@ fn main() {
     let mut x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
     let mut x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
     // for _ in 0..N_TRYS {
-    let mut evaluator = MatrixRecurrentFabricator::fabricate(&champion).expect("didnt work");
+    let mut evaluator = MatrixRecurrentFabricator::fabricate(champion).expect("didnt work");
     for step in 0..STEPS {
         let input_values: Vec<f32> = [x_vals, f_vals].concat();
         let prediction: Vec<f64> = evaluator.evaluate(input_values.clone().iter().map(|x | *x as f64).collect() );
@@ -123,11 +137,8 @@ fn main() {
         let prediction =Prediction {
             fitness: sub::func1(x_guess) + x_minus.abs() + x_plus.abs(),
             x_guess: x_guess,
-            x_plus: x_plus,
-            x_minus: x_minus};
-        // x_minus = MAXDEV * prediction[1]as f32;
-        // x_plus = MAXDEV * prediction[0]as f32;
-        // dbg!([x_guess, x_minus, x_plus]);
+            x_plus: x_plus.abs(),
+            x_minus: x_minus.abs()};
         print!("Champion Step {}: {:?}\n",step, prediction);
         between = Uniform::from(x_guess - x_minus.abs()..x_guess +x_plus.abs());
         x_vals = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
@@ -135,10 +146,13 @@ fn main() {
         f_vals = x_vals.iter().enumerate().map(|(_, x)| sub::func1(*x).clone()).collect::<Vec<_>>();
         x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
         x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
+        // let contents = String::from(format!());
+        if let Err(e) = writeln!(file, "{x_val1},{x_plus},{x_minus}\n",x_val1 = x_guess, x_plus = x_plus.abs(), x_minus = x_minus.abs()) {
+            eprintln!("Couldn't write to file: {}", e);
+        }
     }
-    let contents = String::from(format!("XVal,x-plus,x-minus\n{x_val1},{x_plus},{x_minus}",x_val1 = x_guess, x_plus = x_plus, x_minus = x_minus));
-    fs::write("data/out.txt", contents).expect("Unable to write file");
     
+    // fs::write("data/out.txt", contents).expect("Unable to write file");
 }
 
 
@@ -168,12 +182,8 @@ fn evaluate_net_fitness(net: &Genome) -> (Prediction) {
             let input_values: Vec<f32> = [x_vals, f_vals].concat();
             let prediction: Vec<f64> = evaluator.evaluate(input_values.clone().iter().map(|x | *x as f64).collect() );
             x_guess = prediction[0] as f32*(x_max-x_min) + x_min;
-            x_minus = x_minus+ x_minus*(prediction[1]as f32-0.5);
-            x_plus = x_plus+ x_plus*(prediction[2]as f32-0.5);
-            // x_minus = MAXDEV * prediction[1]as f32;
-            // x_plus = MAXDEV * prediction[0]as f32;
-            //  = x_minus+ x_minus*(prediction[1]-0.5);
-            // x_plus = x_plus+ x_plus*(prediction[2]-0.5);
+            x_minus = x_minus+ x_minus*((prediction[1]as f32)-0.5);
+            x_plus = x_plus+ x_plus*((prediction[2]as f32)-0.5);
             if x_guess.is_nan() || x_minus.is_nan()|| x_plus.is_nan(){
                 return Prediction {
                     fitness: f32::INFINITY,
@@ -223,8 +233,8 @@ fn evaluate_net_fitness(net: &Genome) -> (Prediction) {
     Prediction {
         fitness: fitness,
         x_guess: x_worst,
-        x_plus: x_plus,
-        x_minus: x_minus}
+        x_plus: x_plus.abs(),
+        x_minus: x_minus.abs()}
         
 
 }

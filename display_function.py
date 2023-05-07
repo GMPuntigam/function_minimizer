@@ -45,7 +45,18 @@ t = np.arange(-5.0, 5.0, 0.01)
 s = function_handle(t)
 line, = plt.plot(t, s, lw=2)
 
-plt.plot(df["XVal"][0], function_handle(df["XVal"][0]), 'bo')
-# ax.arrow(df["XVals"][0], 1, df["Delta"][0], 0, head_width=0.05, head_length=0.1, fc='k', ec='k')
+# plt.plot(df["XVal"][0], function_handle(df["XVal"][0]), 'bo')
+
+x = df['XVal'].values
+y = [function_handle(val) for val in df['XVal'].values]
+u = np.diff(x)
+v = np.diff(y)
+pos_x = x[:-1] + u/2
+pos_y = y[:-1] + v/2
+norm = np.sqrt(u**2+v**2) 
+ax.plot(x,y, marker="o")
+ax.quiver(pos_x, pos_y, u/norm, v/norm, angles="xy", zorder=5, pivot="mid")
+
+plt.plot([df["XVal"][0]-df["x-minus"][0], df["XVal"][0]+df["x-plus"][0]], [function_handle(df["XVal"][0])]*2, lw=2, linestyle="solid", color="red")
 plt.ylim(-5, 5)
 plt.show()
