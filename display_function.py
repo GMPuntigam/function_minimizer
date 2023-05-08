@@ -51,28 +51,50 @@ write_sub_rs([rust_str1, rust_str2, rust_str3, rust_str4])
 
 
 
-# p = subprocess.Popen('cargo run --release', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-# for line in iter(p.stdout.readline, ''):
-#     print(line[0:-1])
-# p.stdout.close()
-# retval = p.wait()
-# print("ran simulation")
+p = subprocess.Popen('cargo run --release', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+for line in iter(p.stdout.readline, ''):
+    print(line[0:-1])
+p.stdout.close()
+retval = p.wait()
+print("ran simulation")
 
-def show_progress (filepath, calc_function, closeup =False):
+def show_step(function, step, df):
+    df_view = df[df.index==step]
+    samplepoints = int((len(df.columns) - 3)/2)
+    # print(df_view)
+    
+    x_vals = []
+    fx_vals = []
+    for point in range(samplepoints):
+        x_vals.append(df_view["x{}".format(point)][step])
+        fx_vals.append(df_view["f(x{})".format(point)][step])
+    ax = plt.subplot()
+    t = np.arange(min(x_vals), max(x_vals), (max(x_vals) - min(x_vals))/1000)
+    s = function(t)
+    ax.plot(x_vals,fx_vals, marker="o")
+    ax.plot(df_view["XVal"][step],function(df_view["XVal"][step]), marker="o", color="red")
+    line, = plt.plot(t, s, lw=2)
+    plt.plot([df_view["XVal"][step]-df_view["x-minus"][step], df_view["XVal"][step]+df_view["x-plus"][step]], [function(df_view["XVal"][step])]*2, lw=2, linestyle="solid", color="red")
+    plt.show()
+
+
+def show_progress (filepath, function, closeup =False):
     df = pd.read_csv(filepath, sep=",")
-    print(df)
+    for step in range(len(df)):
+        show_step(function, step, df)
+    # print(df)
     ax = plt.subplot()
     if closeup:
         t = np.arange(-5, 5, 0.01)
     else:
         t = np.arange(min(df["XVal"]), max(df["XVal"]), (max(df["XVal"])-min(df["XVal"]))/100)
-    s = calc_function(t)
+    s = function(t)
     line, = plt.plot(t, s, lw=2)
-
+    
     # plt.plot(df["XVal"][0], function_handle(df["XVal"][0]), 'bo')
 
     x = df['XVal'].values
-    y = [calc_function(val) for val in df['XVal'].values]
+    y = [function(val) for val in df['XVal'].values]
     u = np.diff(x)
     v = np.diff(y)
     pos_x = x[:-1] + u/2
@@ -82,7 +104,7 @@ def show_progress (filepath, calc_function, closeup =False):
     ax.quiver(pos_x, pos_y, u/norm, v/norm, angles="xy", zorder=5, pivot="mid")
     lendf= len(df) -1
 
-    plt.plot([df["XVal"][lendf]-df["x-minus"][lendf], df["XVal"][lendf]+df["x-plus"][lendf]], [calc_function(df["XVal"][lendf])]*2, lw=2, linestyle="solid", color="red")
+    plt.plot([df["XVal"][lendf]-df["x-minus"][lendf], df["XVal"][lendf]+df["x-plus"][lendf]], [function(df["XVal"][lendf])]*2, lw=2, linestyle="solid", color="red")
     if closeup:
         plt.ylim(-10, 10)
         plt.xlim(-5, 5)

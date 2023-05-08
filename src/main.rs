@@ -16,8 +16,8 @@ const STEPS: usize = 20;
 const N_TRYS: usize = 10;
 const N_TESTFUNCTIONS: usize =4;
 const SAMPLEPOINTS: usize = 6;
-const POPULATION_SIZE: usize = 1200;
-const GENERATIONS: usize = 600;
+const POPULATION_SIZE: usize = 1500;
+const GENERATIONS: usize = 300;
 const MAXDEV: f32 = 100.0;
 
 #[derive(Debug)]
@@ -137,9 +137,23 @@ fn main() {
     
 }
 
+fn generate_sampleheader()-> String {
+    let mut helpvec = Vec::with_capacity(SAMPLEPOINTS);
+    for i in 0..SAMPLEPOINTS {
+        helpvec.push(format!("x{i}", i=i));
+    }
+    for i in 0..SAMPLEPOINTS {
+        helpvec.push(format!("f(x{i})", i=i));
+    }
+    let joined = helpvec.join(",").to_owned();
+    joined
+}
+
 fn evaluate_champion(champion: &Genome, f: fn(f32) -> f32, filepath: &str) {
-    let contents = String::from(format!("XVal,x-plus,x-minus\n"));
-    fs::write(filepath, contents).expect("Unable to write file");
+    let contents = String::from(format!(",XVal,x-plus,x-minus\n"));
+    let mut sampleheader = generate_sampleheader();
+    sampleheader.push_str(&contents);
+    fs::write(filepath, sampleheader).expect("Unable to write file");
     let mut file = OpenOptions::new()
         .write(true)
         .append(true)
@@ -151,7 +165,7 @@ fn evaluate_champion(champion: &Genome, f: fn(f32) -> f32, filepath: &str) {
     let mut between: Uniform<f32> = Uniform::from(x_guess - x_minus.abs()..x_guess +x_plus.abs());
     let mut x_vals: Vec<f32> = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
     x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let mut f_vals: Vec<f32> = x_vals.iter().enumerate().map(|(_, x)| sub::func2(*x).clone()).collect::<Vec<_>>();
+    let mut f_vals: Vec<f32> = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone()).collect::<Vec<_>>();
     let mut x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
     let mut x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
     // for _ in 0..N_TRYS {
@@ -167,17 +181,19 @@ fn evaluate_champion(champion: &Genome, f: fn(f32) -> f32, filepath: &str) {
             x_guess: x_guess,
             x_plus: x_plus.abs(),
             x_minus: x_minus.abs()};
-        print!("Champion Step {}: {:?}\n",step, prediction);
+        print!("Champion Step {}: {:?}\n",step, prediction); 
+        let samples_string: String = input_values.iter().map( |&id| id.to_string() + ",").collect();
+        if let Err(e) = writeln!(file, "{samples}{x_val1},{x_plus},{x_minus}",samples =samples_string, x_val1 = x_guess, x_plus = x_plus.abs(), x_minus = x_minus.abs()) {
+            eprintln!("Couldn't write to file: {}", e);
+        }
         between = Uniform::from(x_guess - x_minus.abs()..x_guess +x_plus.abs());
         x_vals = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
         x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        f_vals = x_vals.iter().enumerate().map(|(_, x)| sub::func2(*x).clone()).collect::<Vec<_>>();
+        f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone()).collect::<Vec<_>>();
         x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
         x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
         // let contents = String::from(format!());
-        if let Err(e) = writeln!(file, "{x_val1},{x_plus},{x_minus}",x_val1 = x_guess, x_plus = x_plus.abs(), x_minus = x_minus.abs()) {
-            eprintln!("Couldn't write to file: {}", e);
-        }
+        
     }
     
     // fs::write("data/out.txt", contents).expect("Unable to write file");
