@@ -207,6 +207,10 @@ fn evaluate_on_testfunction(f: fn(f32) -> f32, mut evaluator:  MatrixRecurrentEv
     let mut x_minus: f32 = MAXDEV;
     let mut x_plus: f32 = MAXDEV;
     for _ in 0..N_TRYS {
+        let mut rng = rand::thread_rng();
+        let y =rng.gen_range(0.0..10.0);
+        let y2 =rng.gen_range(0.0..10.0);
+        let g: fn(f32, f32, f32) -> f32 = |x, y, z| y*x.sin() + z*x.powi(2);
         x_guess = 0.0;
         x_minus = MAXDEV;
         x_plus = MAXDEV;
@@ -215,7 +219,7 @@ fn evaluate_on_testfunction(f: fn(f32) -> f32, mut evaluator:  MatrixRecurrentEv
         let mut between = Uniform::from(lower_range_limit..upper_range_limit);
         let mut x_vals: Vec<f32>  = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
         x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let mut f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone()).collect::<Vec<_>>();
+        let mut f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone() +g(*x, y, y2)).collect::<Vec<_>>();
         let mut step_diff: Vec<f32>= Vec::with_capacity(STEPS);
         // f_vals = f_vals.iter().enumerate().map(|(_, x)| *x/f_max).collect::<Vec<_>>();
         let mut x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
@@ -250,12 +254,12 @@ fn evaluate_on_testfunction(f: fn(f32) -> f32, mut evaluator:  MatrixRecurrentEv
             if lower_range_limit >= upper_range_limit{
                 // dbg!([lower_range_limit,x_guess, upper_range_limit]);
                 x_vals = vec![x_guess; SAMPLEPOINTS];
-                f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone()).collect::<Vec<_>>();
+                f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone() +g(*x, y, y2)).collect::<Vec<_>>();
             } else {
                 between = Uniform::from(lower_range_limit..upper_range_limit);
                 x_vals = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
                 x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-                f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone()).collect::<Vec<_>>();
+                f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone() +g(*x, y, y2)).collect::<Vec<_>>();
             }
             let tmp = f(x_guess.clone())-f_min.clone();
             if tmp != 0.0 {

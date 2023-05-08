@@ -51,12 +51,12 @@ write_sub_rs([rust_str1, rust_str2, rust_str3, rust_str4])
 
 
 
-p = subprocess.Popen('cargo run --release', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-for line in iter(p.stdout.readline, ''):
-    print(line[0:-1])
-p.stdout.close()
-retval = p.wait()
-print("ran simulation")
+# p = subprocess.Popen('cargo run --release', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+# for line in iter(p.stdout.readline, ''):
+#     print(line[0:-1])
+# p.stdout.close()
+# retval = p.wait()
+# print("ran simulation")
 
 def show_step(function, step, df):
     df_view = df[df.index==step]
@@ -80,8 +80,9 @@ def show_step(function, step, df):
 
 def show_progress (filepath, function, closeup =False):
     df = pd.read_csv(filepath, sep=",")
-    for step in range(len(df)):
-        show_step(function, step, df)
+    if closeup:
+        for step in range(len(df)):
+            show_step(function, step, df)
     # print(df)
     ax = plt.subplot()
     if closeup:
