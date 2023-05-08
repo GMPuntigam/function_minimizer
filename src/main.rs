@@ -14,10 +14,10 @@ use set_genome::{Genome, Parameters, Structure, Mutations, activations::Activati
 
 const STEPS: usize = 20;
 const N_TRYS: usize = 10;
-const N_TESTFUNCTIONS: usize =2;
+const N_TESTFUNCTIONS: usize =4;
 const SAMPLEPOINTS: usize = 6;
-const POPULATION_SIZE: usize = 1000;
-const GENERATIONS: usize = 500;
+const POPULATION_SIZE: usize = 1200;
+const GENERATIONS: usize = 600;
 const MAXDEV: f32 = 100.0;
 
 #[derive(Debug)]
@@ -39,8 +39,8 @@ pub struct FitnessEval{
 
 #[derive(Debug)]
 pub struct TestfunctionEval{
-    fitnessEval: FitnessEval,
-    functionName: String,
+    fitness_eval: FitnessEval,
+    function_name: String,
 }
 
 #[derive(Debug)]
@@ -116,7 +116,8 @@ fn main() {
         let mut rng = thread_rng();
         while new_population.len() < POPULATION_SIZE {
             let mut child = new_population.choose(&mut rng).unwrap().clone();
-            child.mutate(&parameters);
+            if let Err(_) = child.mutate(&parameters) {
+            };
             new_population.push(child);
         }
 
@@ -131,6 +132,8 @@ fn main() {
     print!("{}", Genome::dot(&champion));
     evaluate_champion(&champion, sub::func1, "data/powerfour.txt");
     evaluate_champion(&champion, sub::func2, "data/quadratic_sinus.txt");
+    evaluate_champion(&champion, sub::func3, "data/abs.txt");
+    evaluate_champion(&champion, sub::func4, "data/x-squared.txt");
     
 }
 
@@ -172,7 +175,7 @@ fn evaluate_champion(champion: &Genome, f: fn(f32) -> f32, filepath: &str) {
         x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
         x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
         // let contents = String::from(format!());
-        if let Err(e) = writeln!(file, "{x_val1},{x_plus},{x_minus}\n",x_val1 = x_guess, x_plus = x_plus.abs(), x_minus = x_minus.abs()) {
+        if let Err(e) = writeln!(file, "{x_val1},{x_plus},{x_minus}",x_val1 = x_guess, x_plus = x_plus.abs(), x_minus = x_minus.abs()) {
             eprintln!("Couldn't write to file: {}", e);
         }
     }
@@ -197,11 +200,12 @@ fn evaluate_on_testfunction(f: fn(f32) -> f32, mut evaluator:  MatrixRecurrentEv
         let mut x_vals: Vec<f32>  = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
         x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let mut f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone()).collect::<Vec<_>>();
-        // let f_max = f_vals.iter().copied().fold(f32::NAN, f32::max);
+        let mut step_diff: Vec<f32>= Vec::with_capacity(STEPS);
         // f_vals = f_vals.iter().enumerate().map(|(_, x)| *x/f_max).collect::<Vec<_>>();
         let mut x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
         let mut x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
         for _ in 0..STEPS {
+            let f_min: f32 = f_vals.iter().copied().fold(f32::NAN, f32::min);
             let input_values: Vec<f32> = [x_vals, f_vals].concat();
             let prediction: Vec<f64> = evaluator.evaluate(input_values.clone().iter().map(|x | *x as f64).collect() );
             x_guess = prediction[0] as f32*(x_max-x_min) + x_min;
@@ -237,8 +241,12 @@ fn evaluate_on_testfunction(f: fn(f32) -> f32, mut evaluator:  MatrixRecurrentEv
                 x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
                 f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone()).collect::<Vec<_>>();
             }
-            
-            
+            let tmp = f(x_guess.clone())-f_min.clone();
+            if tmp != 0.0 {
+                step_diff.push((f(x_guess.clone())-f_min.clone())/(f(x_guess.clone())-f_min.clone()).abs());
+            }else{
+                step_diff.push(0.0);
+            }
             x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
             x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
         }
@@ -246,8 +254,8 @@ fn evaluate_on_testfunction(f: fn(f32) -> f32, mut evaluator:  MatrixRecurrentEv
         {
             x_worst = x_guess;
         }
-        
-        fitness_vec.push(f(x_guess) + (x_minus.abs() + x_plus.abs())*0.25);
+        // dbg!(step_diff.clone());
+        fitness_vec.push(f(x_guess) + (x_minus.abs() + x_plus.abs())*0.025 + step_diff.iter().sum::<f32>());
         
     }
     let fitness = fitness_vec.iter().copied().fold(f32::NAN, f32::max);
@@ -269,17 +277,31 @@ fn evaluate_net_fitness(net: &Genome) -> OverallFitness {
     evaluator = MatrixRecurrentFabricator::fabricate(net).expect("didnt work");
     fitness = evaluate_on_testfunction(sub::func2, evaluator);
     fitness_vec.push(fitness);
+    evaluator = MatrixRecurrentFabricator::fabricate(net).expect("didnt work");
+    fitness = evaluate_on_testfunction(sub::func3, evaluator);
+    fitness_vec.push(fitness);
+    evaluator = MatrixRecurrentFabricator::fabricate(net).expect("didnt work");
+    fitness = evaluate_on_testfunction(sub::func4, evaluator);
+    fitness_vec.push(fitness);
     // dbg!(&delta_f_values);
     fitness_vec.sort_by(|a, b| a.fitness.partial_cmp(&b.fitness).unwrap());
     OverallFitness{
-        fitness: fitness_vec[1].fitness,
+        fitness: fitness_vec[3].fitness,
         fitnessvec: vec![TestfunctionEval {
-            fitnessEval: fitness_vec[0],
-            functionName: String::from("Power four")
+            fitness_eval: fitness_vec[0],
+            function_name: String::from("Power four")
         } ,
         TestfunctionEval {
-            fitnessEval:fitness_vec[1],
-            functionName: String::from("Quadratic Sinus")
+            fitness_eval:fitness_vec[1],
+            function_name: String::from("Quadratic Sinus")
+        },
+        TestfunctionEval {
+            fitness_eval:fitness_vec[2],
+            function_name: String::from("Abs")
+        },
+        TestfunctionEval {
+            fitness_eval:fitness_vec[3],
+            function_name: String::from("X-Squared")
         }]}        
 }
 

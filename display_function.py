@@ -13,6 +13,14 @@ def sin_square_function(x):
     fx = 0.5 * x**2 + x**2 * np.sin(x)**2 + x
     return fx
 
+def abs_function(x):
+    fx = np.abs(x)
+    return fx
+
+def x_squared(x):
+    fx = (x-5.0)**2
+    return fx
+
 
 def function_to_rust_string(function_handle):
     text = inspect.getsource(function_handle)
@@ -21,38 +29,43 @@ def function_to_rust_string(function_handle):
     function_str = lines[1:-1]
     function_str = function_str[0].split("=")[1]
     function_str = re.sub(r'np\.sin\(' + variables[0] + r'\)',  variables[0] + r'.sin()', function_str)
+    function_str = re.sub(r'np\.abs\(' + variables[0] + r'\)',  variables[0] + r'.abs()', function_str)
     function_str = re.sub(r'(?<=\*\*)\d',  r'.powi(\g<0>)', function_str)
     function_str = re.sub(r'\*\*',  '', function_str)
     return function_str
 
 # print(function_to_rust_string(sin_square_function))
 
-def write_sub_rs(rust_str1, rust_str2):
+def write_sub_rs(function_strs):
     with open(r'src\sub.rs', 'w') as f:
-        f.write("const FUNCTION_HANDLE1: fn(f32) -> f32 = |x| {};\n".format(rust_str1))
-        f.write("const FUNCTION_HANDLE2: fn(f32) -> f32 = |x| {};\n".format(rust_str2))
-        f.write("pub fn func1(x: f32 ) -> f32 {\n    FUNCTION_HANDLE1(x)\n}")
-        f.write("pub fn func2(x: f32 ) -> f32 {\n    FUNCTION_HANDLE2(x)\n}")
+        for i, rust_str in enumerate(function_strs):
+            f.write("const FUNCTION_HANDLE{}: fn(f32) -> f32 = |x| {};\n".format(i+1, rust_str))
+        for i, rust_str in enumerate(function_strs):
+            f.write("pub fn func{}(x: f32 ) -> f32 ".format(i+1) +"{" + "\n    FUNCTION_HANDLE{}(x)\n".format(i+1) + "}")
 
 rust_str1 = function_to_rust_string(function_handle)
 rust_str2 = function_to_rust_string(sin_square_function)
-write_sub_rs(rust_str1, rust_str2)
+rust_str3 = function_to_rust_string(abs_function)
+rust_str4 = function_to_rust_string(x_squared)
+write_sub_rs([rust_str1, rust_str2, rust_str3, rust_str4])
 
 
 
-p = subprocess.Popen('cargo run --release', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-for line in iter(p.stdout.readline, ''):
-    print(line[0:-1])
-p.stdout.close()
-retval = p.wait()
-print("ran simulation")
+# p = subprocess.Popen('cargo run --release', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+# for line in iter(p.stdout.readline, ''):
+#     print(line[0:-1])
+# p.stdout.close()
+# retval = p.wait()
+# print("ran simulation")
 
-def show_progress (filepath, calc_function):
+def show_progress (filepath, calc_function, closeup =False):
     df = pd.read_csv(filepath, sep=",")
     print(df)
     ax = plt.subplot()
-
-    t = np.arange(min(df["XVal"]), max(df["XVal"]), (max(df["XVal"])-min(df["XVal"]))/100)
+    if closeup:
+        t = np.arange(-5, 5, 0.01)
+    else:
+        t = np.arange(min(df["XVal"]), max(df["XVal"]), (max(df["XVal"])-min(df["XVal"]))/100)
     s = calc_function(t)
     line, = plt.plot(t, s, lw=2)
 
@@ -70,8 +83,16 @@ def show_progress (filepath, calc_function):
     lendf= len(df) -1
 
     plt.plot([df["XVal"][lendf]-df["x-minus"][lendf], df["XVal"][lendf]+df["x-plus"][lendf]], [calc_function(df["XVal"][lendf])]*2, lw=2, linestyle="solid", color="red")
-    # plt.ylim(-5, 5)
+    if closeup:
+        plt.ylim(-10, 10)
+        plt.xlim(-5, 5)
     plt.show()
 
 show_progress(r"data\powerfour.txt", function_handle)
+show_progress(r"data\powerfour.txt", function_handle, True)
 show_progress(r"data\quadratic_sinus.txt", sin_square_function)
+show_progress(r"data\quadratic_sinus.txt", sin_square_function, True)
+show_progress(r"data\abs.txt", abs_function)
+show_progress(r"data\abs.txt", abs_function, True)
+show_progress(r"data\x-squared.txt", x_squared)
+show_progress(r"data\x-squared.txt", x_squared, True)
