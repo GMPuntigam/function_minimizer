@@ -6,18 +6,18 @@ use rand::{
     seq::SliceRandom,
     thread_rng, Rng,
 };
-use std::fs::OpenOptions;
+use std::{fs::OpenOptions, cmp::max};
 use std::io::prelude::*;
 use std::{cmp::Ordering, fs};
 use rayon::prelude::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use set_genome::{Genome, Parameters, Structure, Mutations, activations::Activation};
 
-const STEPS: usize = 12;
+const STEPS: usize = 100;
 const N_TRYS: usize = 10;
 const N_TESTFUNCTIONS: usize =4;
 const SAMPLEPOINTS: usize = 6;
-const POPULATION_SIZE: usize = 700;
-const GENERATIONS: usize = 250;
+const POPULATION_SIZE: usize = 400;
+const GENERATIONS: usize = 300;
 const MAXDEV: f32 = 100.0;
 
 #[derive(Debug)]
@@ -32,7 +32,8 @@ pub struct FitnessEval{
     fitness: f32,
     x_worst: f32,
     x_minus: f32,
-    x_plus: f32
+    x_plus: f32,
+    step: usize
 }
 
 
@@ -53,7 +54,7 @@ pub struct OverallFitness{
 fn main() {
     // env::set_var("RUST_BACKTRACE", "1");
     let parameters = Parameters {
-        structure: Structure { number_of_inputs: (2*SAMPLEPOINTS + 2), number_of_outputs: (3), percent_of_connected_inputs: (1.0), outputs_activation: (Activation::Sigmoid), seed: (42) },
+        structure: Structure { number_of_inputs: (2*SAMPLEPOINTS + 1), number_of_outputs: (3), percent_of_connected_inputs: (1.0), outputs_activation: (Activation::Sigmoid), seed: (42) },
         // structure: Structure::basic(2*SAMPLEPOINTS + 2, 3),
         mutations: vec![
             Mutations::ChangeWeights {
@@ -79,7 +80,8 @@ fn main() {
             Mutations::AddConnection { chance: 0.02 },
             Mutations::AddRecurrentConnection { chance: 0.1 },
             Mutations::RemoveConnection { chance: 0.05 },
-            Mutations::RemoveNode { chance: 0.01 }
+            Mutations::RemoveConnection { chance: 0.01 },
+            Mutations::RemoveNode { chance: 0.05 }
         ],
     };
 
@@ -161,51 +163,86 @@ fn evaluate_champion(champion: &Genome, f: fn(f32) -> f32, filepath: &str) {
         .append(true)
         .open(filepath)
         .unwrap();
-    let mut x_guess: f32 = 0.0;
+    let mut x_vals_normalized;
+    let mut x_guess : f32 = 0.0;
     let mut x_minus: f32 = MAXDEV;
     let mut x_plus: f32 = MAXDEV;
-    let mut x_best: f32 = rng.gen_range(-MAXDEV..MAXDEV);
-    let mut between: Uniform<f32> = Uniform::from(x_guess - x_minus.abs()..x_guess +x_plus.abs());
+    let mut x_best: f32 = rng.gen_range(0.0..x_minus + x_plus);
+    let mut between: Uniform<f32> = Uniform::from(0.0..x_minus + x_plus);
     let mut x_vals: Vec<f32> = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
     x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let mut f_vals: Vec<f32> = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone()).collect::<Vec<_>>();
+    let mut f_vals_normalized : Vec<f32>;
+    let mut f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x-x_minus).clone()).collect::<Vec<_>>();
+    // norm f_vals
+    let mut f_max = f_vals.iter().copied().fold(f32::NAN, f32::max);
+    // f_vals = f_vals.iter().enumerate().map(|(_, x)| *x/f_max).collect::<Vec<_>>();
+    // get max and min of x_samples for interpretation of prediction
     let mut x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
     let mut x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
+    // norm x_vals
+    x_vals_normalized = x_vals.iter().enumerate().map(|(_, x)| (*x-x_min)/(x_max-x_min)).collect::<Vec<_>>();
+    // x_vals should be between 0 and 1 now, the first always0, the last always 1.
     // for _ in 0..N_TRYS {
     let mut evaluator = MatrixRecurrentFabricator::fabricate(champion).expect("didnt work");
-    for step in 0..STEPS {
-        let input_values: Vec<f32> = [x_vals, f_vals, vec![x_best, (STEPS-step) as f32]].concat();
-        let prediction: Vec<f64> = evaluator.evaluate(input_values.clone().iter().map(|x | *x as f64).collect() );
-        x_guess = (prediction[0] as f32)*(x_max) + (1.0-prediction[0] as f32)*x_min;
-        x_minus = x_minus+ x_minus*(prediction[1]as f32-0.5);
-        x_plus = x_plus+ x_plus*(prediction[2]as f32-0.5);
-        let prediction =Prediction {
-            fitness: f(x_guess) + x_minus.abs() + x_plus.abs(),
-            x_guess: x_guess,
-            x_plus: x_plus.abs(),
-            x_minus: x_minus.abs()};
-        print!("Champion Step {}: {:?}\n",step, prediction); 
-        let samples_string: String = input_values.iter().map( |&id| id.to_string() + ",").collect();
-        if let Err(e) = writeln!(file, "{samples}{x_val1},{x_plus},{x_minus}",samples =samples_string, x_val1 = x_guess, x_plus = x_plus.abs(), x_minus = x_minus.abs()) {
-            eprintln!("Couldn't write to file: {}", e);
-        }
-        between = Uniform::from(x_guess - x_minus.abs()..x_guess +x_plus.abs());
-        x_vals = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
-        x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone()).collect::<Vec<_>>();
-        x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
-        x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
-        if f(x_guess) < f(x_best)
-        {
-            x_best = x_guess;
-        }
-        // let contents = String::from(format!());
-        
+    // for step in 0..STEPS {
+    let mut step = 0;
+        while ((x_minus + x_plus) > 1.0e-4_f32) & (step < STEPS){
+            step+=1; 
+            f_vals = f_vals.clone();
+            f_vals_normalized = f_vals.iter().enumerate().map(|(_, x)| *x/f_max).collect::<Vec<_>>();
+            let input_values: Vec<f32> = [x_vals.clone().iter().enumerate().map(|(_, x)| *x-x_minus+x_guess).collect::<Vec<_>>(), f_vals.clone(), vec![x_best]].concat();
+            let input_values_normalized: Vec<f32> = [x_vals_normalized, f_vals_normalized, vec![x_best]].concat();
+            let prediction: Vec<f64> = evaluator.evaluate(input_values_normalized.clone().iter().map(|x | *x as f64).collect() );
+            let mut pred_x_guess = prediction[0] as f32;
+            let mut pred_x_minus = prediction[1]as f32;
+            let mut pred_x_plus = prediction[2]as f32;
+            if pred_x_minus < 0.0{
+                pred_x_minus = 0.0;
+            }   else if pred_x_minus > 1.0 {
+                pred_x_minus = 1.0;
+            }
+            if pred_x_plus < 0.0{
+                pred_x_plus = 0.0;
+            }   else if pred_x_plus > 1.0 {
+                pred_x_plus = 1.0;
+            }
+            if pred_x_guess < 0.0{
+                pred_x_guess = 0.0;
+            }   else if pred_x_guess > 1.0 {
+                pred_x_guess = 1.0;
+            }
+            // dbg!(&pred_x_guess, x_max.clone()-x_min.clone(), x_min, x_minus);
+            x_guess = (pred_x_guess)*(x_max-x_min)+x_min -x_minus + x_guess;
+            x_minus = x_minus*(0.5+pred_x_minus);
+            x_plus = x_plus*(0.5+pred_x_plus);
+
+            let prediction =Prediction {
+                fitness: f(x_guess) + (x_minus + x_plus),
+                x_guess: x_guess,
+                x_plus: x_plus,
+                x_minus: x_minus};
+            print!("Champion Step {}: {:?}\n",step, prediction); 
+            let samples_string: String = input_values.iter().map( |&id| id.to_string() + ",").collect();
+            if let Err(e) = writeln!(file, "{samples}{step},{x_val1},{x_plus},{x_minus}",samples =samples_string, step=step, x_val1 = x_guess, x_plus = x_plus, x_minus = x_minus) {
+                eprintln!("Couldn't write to file: {}", e);
+            }
+            between = Uniform::from(0.0..x_minus + x_plus);
+            x_vals = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
+            x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x-x_minus+x_guess).clone()).collect::<Vec<_>>();
+            f_max = f_vals.iter().copied().fold(f32::NAN, f32::max);
+            x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
+            x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
+            x_vals_normalized = x_vals.iter().enumerate().map(|(_, x)| (*x-x_min)/(x_max-x_min)).collect::<Vec<_>>();
+            if f(x_guess) < f(x_best) {
+                x_best = x_guess;
+            }
+            // let contents = String::from(format!());
+            
     }
     
     // fs::write("data/out.txt", contents).expect("Unable to write file");
 }
-
 
 fn evaluate_on_testfunction(f: fn(f32) -> f32, mut evaluator:  MatrixRecurrentEvaluator) -> FitnessEval {
     let mut fitness_vec= Vec::with_capacity(N_TRYS);
@@ -213,128 +250,210 @@ fn evaluate_on_testfunction(f: fn(f32) -> f32, mut evaluator:  MatrixRecurrentEv
     let mut x_worst: f32 = 0.0;
     let mut x_minus: f32 = MAXDEV;
     let mut x_plus: f32 = MAXDEV;
-    for _ in 0..N_TRYS {
+    let mut step_worst: usize = 0;
+    for try_enum in 0..N_TRYS {
+        let mut counter: usize = 0;
         let mut rng = rand::thread_rng();
         let y =rng.gen_range(0.0..10.0);
         let y2 =rng.gen_range(0.0..10.0);
         let g: fn(f32, f32, f32) -> f32 = |x, y, z| y*x.sin() + z*x.powi(2);
-        let mut x_best: f32 = rng.gen_range(-MAXDEV..MAXDEV);
+        let mut x_best: f32 = rng.gen_range(0.0..x_minus + x_plus);
         x_guess = 0.0;
         x_minus = MAXDEV;
         x_plus = MAXDEV;
-        let mut lower_range_limit = x_guess - x_minus.abs();
-        let mut upper_range_limit = x_guess + x_plus.abs();
-        let mut between = Uniform::from(lower_range_limit..upper_range_limit);
+        // set upper range of randomness generation
+        let mut lower_range_limit;
+        let mut upper_range_limit;
+        // generate positive random values within the span of xminus + x plus
+        let mut between = Uniform::from(0.0..x_minus + x_plus);
+        // generate some random values
         let mut x_vals: Vec<f32>  = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
+        // sort the values
         x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let mut f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone() +g(*x, y, y2)).collect::<Vec<_>>();
-        let mut step_diff: Vec<f32>= Vec::with_capacity(STEPS);
-        // f_vals = f_vals.iter().enumerate().map(|(_, x)| *x/f_max).collect::<Vec<_>>();
+        // calculate the function at the xvalues
+        let mut f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x-x_minus).clone() +g(*x-x_minus, y, y2)).collect::<Vec<_>>();
+        // norm f_vals
+        let mut f_max = f_vals.iter().copied().fold(f32::NAN, f32::max);
+        f_vals = f_vals.iter().enumerate().map(|(_, x)| *x/f_max).collect::<Vec<_>>();
+        
+
+        // get max and min of x_samples for interpretation of prediction
         let mut x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
         let mut x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
-        for step in 0..STEPS {
-            let f_min: f32 = f_vals.iter().copied().fold(f32::NAN, f32::min);
-            let input_values: Vec<f32> = [x_vals, f_vals, vec![x_best, (STEPS-step) as f32]].concat();
+        // norm x_vals
+        x_vals = x_vals.iter().enumerate().map(|(_, x)| (*x-x_min)/(x_max-x_min)).collect::<Vec<_>>();
+        // x_vals should be between 0 and 1 now, the first always0, the last always 1.
+        // dbg!(&x_vals);
+        // for step in 0..STEPS {
+        let mut step = 0;
+        while ((x_minus + x_plus) > 1.0e-4_f32) & (step < STEPS) {
+            // dbg!(&f_vals);
+            step+=1;    
+            let input_values: Vec<f32> = [x_vals, f_vals, vec![x_best]].concat();
             let prediction: Vec<f64> = evaluator.evaluate(input_values.clone().iter().map(|x | *x as f64).collect() );
-            x_guess = (prediction[0] as f32)*(x_max) + (1.0-prediction[0] as f32)*x_min;
-            x_minus = x_minus+ x_minus*((prediction[1]as f32)-0.5);
-            x_plus = x_plus+ x_plus*((prediction[2]as f32)-0.5);
+            // dbg!(&prediction);
+            
+            // x_guess = (prediction[0] as f32)*(x_max) + (1.0-prediction[0] as f32)*x_min;
+            let mut pred_x_guess = prediction[0] as f32;
+            let mut pred_x_minus = prediction[1]as f32;
+            let mut pred_x_plus = prediction[2]as f32;
+            if pred_x_minus < 0.0{
+                pred_x_minus = 0.0;
+            }   else if pred_x_minus > 1.0 {
+                pred_x_minus = 1.0;
+            }
+            if pred_x_plus < 0.0{
+                pred_x_plus = 0.0;
+            }   else if pred_x_plus > 1.0 {
+                pred_x_plus = 1.0;
+            }
+            if pred_x_guess < 0.0{
+                pred_x_guess = 0.0;
+            }   else if pred_x_guess > 1.0 {
+                pred_x_guess = 1.0;
+            }
+            x_guess = (pred_x_guess)*(x_max-x_min)+x_min -x_minus + x_guess;
+            
+            // dbg!(&x_guess);
+            x_minus = x_minus*(0.5+pred_x_minus);
+            x_plus = x_plus*(0.5+pred_x_plus);
+            // dbg!(&x_minus, &x_guess, &x_plus);
+            // if simulation runs out of bounds, return inf values
             if x_guess.is_nan() || x_minus.is_nan()|| x_plus.is_nan(){
                 return FitnessEval {
                     fitness: f32::INFINITY,
                     x_worst: f32::INFINITY,
                     x_plus: f32::INFINITY,
-                    x_minus: f32::INFINITY};
+                    x_minus: f32::INFINITY,
+                    step: STEPS};
             }
             
 
             // dbg!([x_guess, x_minus, x_plus]);
-            lower_range_limit = x_guess - x_minus.abs();
-            upper_range_limit = x_guess + x_plus.abs();
+            lower_range_limit = x_guess - x_minus;
+            upper_range_limit = x_guess + x_plus;
             if upper_range_limit - lower_range_limit == f32::INFINITY {
                 // dbg!([x_guess, x_minus, x_plus]);
                 return FitnessEval {
                     fitness: f32::INFINITY,
                     x_worst: f32::INFINITY,
                     x_plus: f32::INFINITY,
-                    x_minus: f32::INFINITY};
+                    x_minus: f32::INFINITY,
+                    step: STEPS
+                };
             }
+            // print new lower range, guessed x and upper range
+            // dbg!([lower_range_limit,x_guess, upper_range_limit]);
             if lower_range_limit >= upper_range_limit{
-                // dbg!([lower_range_limit,x_guess, upper_range_limit]);
-                x_vals = vec![x_guess; SAMPLEPOINTS];
-                f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone() +g(*x, y, y2)).collect::<Vec<_>>();
+                // if lower range limit is buggy, just return multiple x guesses
+                // x_vals = vec![x_guess; SAMPLEPOINTS];
+                // f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone() +g(*x, y, y2)).collect::<Vec<_>>();
+                return FitnessEval {
+                    fitness: f32::INFINITY,
+                    x_worst: f32::INFINITY,
+                    x_plus: f32::INFINITY,
+                    x_minus: f32::INFINITY,
+                    step: STEPS
+                };
             } else {
-                between = Uniform::from(lower_range_limit..upper_range_limit);
+                between = Uniform::from(0.0..x_minus + x_plus);
                 x_vals = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
                 x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-                f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone() +g(*x, y, y2)).collect::<Vec<_>>();
-            }
-            let tmp = f(x_guess.clone())-f_min.clone();
-            if tmp != 0.0 {
-                step_diff.push((f(x_guess.clone())-f_min.clone())/(f(x_guess.clone())-f_min.clone()).abs());
-            }else{
-                step_diff.push(0.0);
+                f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x+x_guess-x_minus).clone() +g(*x+x_guess-x_minus, y, y2)).collect::<Vec<_>>();
+                f_max = f_vals.iter().copied().fold(f32::NAN, f32::max);
+                f_vals = f_vals.iter().enumerate().map(|(_, x)| *x/f_max).collect::<Vec<_>>();
             }
             x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
             x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
-            if f(x_guess) < f(x_best)
+            // norm x_vals
+            x_vals = x_vals.iter().enumerate().map(|(_, x)| (*x-x_min)/(x_max-x_min)).collect::<Vec<_>>();
+            // x_vals should be between 0 and 1 now, the first always0, the last always 1.
+            // dbg!("new xvals",&x_vals);
+
+            if f(x_guess) + g(x_guess, y, y2) - (f(x_best) + g(x_best, y, y2)) < 0.0 {
+                counter = 0
+            } else {
+                counter+=1;
+                // if counter > 6 {
+                //     return FitnessEval {
+                //         fitness: f32::INFINITY,
+                //         x_worst: f32::INFINITY,
+                //         x_plus: f32::INFINITY,
+                //         x_minus: f32::INFINITY,
+                //         step: STEPS
+                //     };
+                // }
+            }
+            if f(x_guess) + g(x_guess, y, y2) < (f(x_best) + g(x_best, y, y2))
             {
                 x_best = x_guess;
             }
         }
-        if f(x_guess) > f(x_worst)
+        if try_enum == 0 {
+            x_worst = x_guess;
+        }
+        if f(x_guess) + g(x_guess, y, y2) > f(x_worst) + g(x_worst, y, y2)
         {
             x_worst = x_guess;
         }
         
+        step_worst = max(step_worst, step);
         // dbg!(step_diff.clone());
         // fitness_vec.push(f(x_guess) + (x_minus.abs() + x_plus.abs())*0.025 + step_diff.iter().sum::<f32>());
-        fitness_vec.push(f(x_guess) + (x_minus.abs() + x_plus.abs())*0.025);
+        fitness_vec.push(f(x_guess) + g(x_guess, y, y2) + (x_minus + x_plus)*(1.0+step as f32).powi(2) + counter as f32);
+        // fitness_vec.push(f(x_guess) + g(x_guess, y, y2));
         
     }
     let fitness = fitness_vec.iter().copied().fold(f32::NAN, f32::max);
     FitnessEval{
         fitness: fitness,
         x_worst: x_worst,
-        x_plus: x_plus.abs(),
-        x_minus: x_minus.abs()
+        x_plus: x_plus,
+        x_minus: x_minus,
+        step: step_worst
     }
 }
 
 fn evaluate_net_fitness(net: &Genome) -> OverallFitness {
-    let mut fitness_vec: Vec<FitnessEval>= Vec::with_capacity(N_TESTFUNCTIONS);
+    let mut fitness_vec: Vec<f32>= Vec::with_capacity(N_TESTFUNCTIONS);
+    let fitness_max: f32;
+    let mut eval_vec: Vec<FitnessEval>= Vec::with_capacity(N_TESTFUNCTIONS);
     // let mut x_guess_vec= Vec::with_capacity(N_TRYS);
     
     let mut evaluator = MatrixRecurrentFabricator::fabricate(net).expect("didnt work");
     let mut fitness = evaluate_on_testfunction(sub::func1, evaluator);
-    fitness_vec.push(fitness);
+    fitness_vec.push(fitness.fitness);
+    eval_vec.push(fitness);
     evaluator = MatrixRecurrentFabricator::fabricate(net).expect("didnt work");
     fitness = evaluate_on_testfunction(sub::func2, evaluator);
-    fitness_vec.push(fitness);
+    fitness_vec.push(fitness.fitness);
+    eval_vec.push(fitness);
     evaluator = MatrixRecurrentFabricator::fabricate(net).expect("didnt work");
     fitness = evaluate_on_testfunction(sub::func3, evaluator);
-    fitness_vec.push(fitness);
+    fitness_vec.push(fitness.fitness);
+    eval_vec.push(fitness);
     evaluator = MatrixRecurrentFabricator::fabricate(net).expect("didnt work");
     fitness = evaluate_on_testfunction(sub::func4, evaluator);
-    fitness_vec.push(fitness);
+    fitness_vec.push(fitness.fitness);
+    eval_vec.push(fitness);
     // dbg!(&delta_f_values);
-    fitness_vec.sort_by(|a, b| a.fitness.partial_cmp(&b.fitness).unwrap());
+    fitness_max = fitness_vec.iter().copied().fold(f32::NAN, f32::max);
     OverallFitness{
-        fitness: fitness_vec[3].fitness,
+        fitness: fitness_max,
         fitnessvec: vec![TestfunctionEval {
-            fitness_eval: fitness_vec[0],
+            fitness_eval: eval_vec[0],
             function_name: String::from("Power four")
         } ,
         TestfunctionEval {
-            fitness_eval:fitness_vec[1],
+            fitness_eval:eval_vec[1],
             function_name: String::from("Quadratic Sinus")
         },
         TestfunctionEval {
-            fitness_eval:fitness_vec[2],
+            fitness_eval:eval_vec[2],
             function_name: String::from("Abs")
         },
         TestfunctionEval {
-            fitness_eval:fitness_vec[3],
+            fitness_eval:eval_vec[3],
             function_name: String::from("X-Squared")
         }]}        
 }

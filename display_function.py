@@ -4,10 +4,10 @@ import subprocess
 import pandas as pd
 from matplotlib import pyplot as plt
 import numpy as np
-from math import floor
+from math import floor, ceil
 
 def function_handle(x):
-    fx = 0.01 * (x + 5.4)**4 - 0.7 * (x + 5.4)**2 + 0.1 * x
+    fx = 0.01 * (x + 50.4)**4 - 0.7 * (x + 50.4)**2 + 0.1 * x
     return fx
 
 def sin_square_function(x):
@@ -19,7 +19,7 @@ def abs_function(x):
     return fx
 
 def x_squared(x):
-    fx = (x-5.0)**2
+    fx = (x-50.0)**2
     return fx
 
 
@@ -84,7 +84,7 @@ def show_progress (filepath, function, closeup =False):
     df = pd.read_csv(filepath, sep=",")
     lendf= len(df) -1
     if closeup:
-        fig, axs = plt.subplots(4, 3)
+        fig, axs = plt.subplots(ceil((lendf+1)/3), 3)
         for step in range(lendf+1):
             show_step(axs, function, step, df)
         plt.show()
@@ -112,8 +112,8 @@ def show_progress (filepath, function, closeup =False):
 
     plt.plot([df["XVal"][lendf]-df["x-minus"][lendf], df["XVal"][lendf]+df["x-plus"][lendf]], [function(df["XVal"][lendf])]*2, lw=2, linestyle="solid", color="red")
     if closeup:
-        plt.ylim(-10, 10)
-        plt.xlim(-5, 5)
+        plt.ylim(function(df["XVal"][lendf])-10, function(df["XVal"][lendf])+10)
+        plt.xlim(min(df["XVal"][lendf]-5,-5)-5,max(df["XVal"][lendf]+5,5)+ 5)
     plt.show()
 
 show_progress(r"data\powerfour.txt", function_handle)
