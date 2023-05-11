@@ -12,12 +12,12 @@ use std::{cmp::Ordering, fs};
 use rayon::prelude::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use set_genome::{Genome, Parameters, Structure, Mutations, activations::Activation};
 
-const STEPS: usize = 20;
+const STEPS: usize = 12;
 const N_TRYS: usize = 10;
 const N_TESTFUNCTIONS: usize =4;
 const SAMPLEPOINTS: usize = 6;
-const POPULATION_SIZE: usize = 1500;
-const GENERATIONS: usize = 300;
+const POPULATION_SIZE: usize = 700;
+const GENERATIONS: usize = 250;
 const MAXDEV: f32 = 100.0;
 
 #[derive(Debug)]
@@ -53,7 +53,8 @@ pub struct OverallFitness{
 fn main() {
     // env::set_var("RUST_BACKTRACE", "1");
     let parameters = Parameters {
-        structure: Structure::basic(2*SAMPLEPOINTS, 3),
+        structure: Structure { number_of_inputs: (2*SAMPLEPOINTS + 2), number_of_outputs: (3), percent_of_connected_inputs: (1.0), outputs_activation: (Activation::Sigmoid), seed: (42) },
+        // structure: Structure::basic(2*SAMPLEPOINTS + 2, 3),
         mutations: vec![
             Mutations::ChangeWeights {
                 chance: 0.8,
@@ -61,7 +62,7 @@ fn main() {
                 standard_deviation: 0.2,
             },
             Mutations::AddNode {
-                chance: 0.05,
+                chance: 0.1,
                 activation_pool: vec![
                     Activation::Sigmoid,
                     Activation::Tanh,
@@ -76,9 +77,9 @@ fn main() {
             },
             Mutations::AddConnection { chance: 0.2 },
             Mutations::AddConnection { chance: 0.02 },
-            Mutations::AddRecurrentConnection { chance: 0.04 },
-            Mutations::RemoveConnection { chance: 0.06 },
-            Mutations::RemoveNode { chance: 0.04 }
+            Mutations::AddRecurrentConnection { chance: 0.1 },
+            Mutations::RemoveConnection { chance: 0.05 },
+            Mutations::RemoveNode { chance: 0.01 }
         ],
     };
 
@@ -150,10 +151,11 @@ fn generate_sampleheader()-> String {
 }
 
 fn evaluate_champion(champion: &Genome, f: fn(f32) -> f32, filepath: &str) {
-    let contents = String::from(format!(",XVal,x-plus,x-minus\n"));
+    let contents = String::from(format!(",x-best,Step,XVal,x-plus,x-minus\n"));
     let mut sampleheader = generate_sampleheader();
     sampleheader.push_str(&contents);
     fs::write(filepath, sampleheader).expect("Unable to write file");
+    let mut rng = rand::thread_rng();
     let mut file = OpenOptions::new()
         .write(true)
         .append(true)
@@ -162,6 +164,7 @@ fn evaluate_champion(champion: &Genome, f: fn(f32) -> f32, filepath: &str) {
     let mut x_guess: f32 = 0.0;
     let mut x_minus: f32 = MAXDEV;
     let mut x_plus: f32 = MAXDEV;
+    let mut x_best: f32 = rng.gen_range(-MAXDEV..MAXDEV);
     let mut between: Uniform<f32> = Uniform::from(x_guess - x_minus.abs()..x_guess +x_plus.abs());
     let mut x_vals: Vec<f32> = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
     x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -171,9 +174,9 @@ fn evaluate_champion(champion: &Genome, f: fn(f32) -> f32, filepath: &str) {
     // for _ in 0..N_TRYS {
     let mut evaluator = MatrixRecurrentFabricator::fabricate(champion).expect("didnt work");
     for step in 0..STEPS {
-        let input_values: Vec<f32> = [x_vals, f_vals].concat();
+        let input_values: Vec<f32> = [x_vals, f_vals, vec![x_best, (STEPS-step) as f32]].concat();
         let prediction: Vec<f64> = evaluator.evaluate(input_values.clone().iter().map(|x | *x as f64).collect() );
-        x_guess = prediction[0] as f32*(x_max-x_min) + x_min;
+        x_guess = (prediction[0] as f32)*(x_max) + (1.0-prediction[0] as f32)*x_min;
         x_minus = x_minus+ x_minus*(prediction[1]as f32-0.5);
         x_plus = x_plus+ x_plus*(prediction[2]as f32-0.5);
         let prediction =Prediction {
@@ -192,6 +195,10 @@ fn evaluate_champion(champion: &Genome, f: fn(f32) -> f32, filepath: &str) {
         f_vals = x_vals.iter().enumerate().map(|(_, x)| f(*x).clone()).collect::<Vec<_>>();
         x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
         x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
+        if f(x_guess) < f(x_best)
+        {
+            x_best = x_guess;
+        }
         // let contents = String::from(format!());
         
     }
@@ -211,6 +218,7 @@ fn evaluate_on_testfunction(f: fn(f32) -> f32, mut evaluator:  MatrixRecurrentEv
         let y =rng.gen_range(0.0..10.0);
         let y2 =rng.gen_range(0.0..10.0);
         let g: fn(f32, f32, f32) -> f32 = |x, y, z| y*x.sin() + z*x.powi(2);
+        let mut x_best: f32 = rng.gen_range(-MAXDEV..MAXDEV);
         x_guess = 0.0;
         x_minus = MAXDEV;
         x_plus = MAXDEV;
@@ -224,11 +232,11 @@ fn evaluate_on_testfunction(f: fn(f32) -> f32, mut evaluator:  MatrixRecurrentEv
         // f_vals = f_vals.iter().enumerate().map(|(_, x)| *x/f_max).collect::<Vec<_>>();
         let mut x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
         let mut x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
-        for _ in 0..STEPS {
+        for step in 0..STEPS {
             let f_min: f32 = f_vals.iter().copied().fold(f32::NAN, f32::min);
-            let input_values: Vec<f32> = [x_vals, f_vals].concat();
+            let input_values: Vec<f32> = [x_vals, f_vals, vec![x_best, (STEPS-step) as f32]].concat();
             let prediction: Vec<f64> = evaluator.evaluate(input_values.clone().iter().map(|x | *x as f64).collect() );
-            x_guess = prediction[0] as f32*(x_max-x_min) + x_min;
+            x_guess = (prediction[0] as f32)*(x_max) + (1.0-prediction[0] as f32)*x_min;
             x_minus = x_minus+ x_minus*((prediction[1]as f32)-0.5);
             x_plus = x_plus+ x_plus*((prediction[2]as f32)-0.5);
             if x_guess.is_nan() || x_minus.is_nan()|| x_plus.is_nan(){
@@ -269,13 +277,19 @@ fn evaluate_on_testfunction(f: fn(f32) -> f32, mut evaluator:  MatrixRecurrentEv
             }
             x_max = x_vals.iter().copied().fold(f32::NAN, f32::max);
             x_min = x_vals.iter().copied().fold(f32::NAN, f32::min);
+            if f(x_guess) < f(x_best)
+            {
+                x_best = x_guess;
+            }
         }
         if f(x_guess) > f(x_worst)
         {
             x_worst = x_guess;
         }
+        
         // dbg!(step_diff.clone());
-        fitness_vec.push(f(x_guess) + (x_minus.abs() + x_plus.abs())*0.025 + step_diff.iter().sum::<f32>());
+        // fitness_vec.push(f(x_guess) + (x_minus.abs() + x_plus.abs())*0.025 + step_diff.iter().sum::<f32>());
+        fitness_vec.push(f(x_guess) + (x_minus.abs() + x_plus.abs())*0.025);
         
     }
     let fitness = fitness_vec.iter().copied().fold(f32::NAN, f32::max);

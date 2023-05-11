@@ -4,6 +4,7 @@ import subprocess
 import pandas as pd
 from matplotlib import pyplot as plt
 import numpy as np
+from math import floor
 
 def function_handle(x):
     fx = 0.01 * (x + 5.4)**4 - 0.7 * (x + 5.4)**2 + 0.1 * x
@@ -58,9 +59,9 @@ write_sub_rs([rust_str1, rust_str2, rust_str3, rust_str4])
 # retval = p.wait()
 # print("ran simulation")
 
-def show_step(function, step, df):
+def show_step(axs, function, step, df):
     df_view = df[df.index==step]
-    samplepoints = int((len(df.columns) - 3)/2)
+    samplepoints = int((len(df.columns) - 5)/2)
     # print(df_view)
     
     x_vals = []
@@ -68,27 +69,31 @@ def show_step(function, step, df):
     for point in range(samplepoints):
         x_vals.append(df_view["x{}".format(point)][step])
         fx_vals.append(df_view["f(x{})".format(point)][step])
-    ax = plt.subplot()
+    ax = axs[floor(step/3), step%3]
+    ax.set_title("Step {}".format(step))
     t = np.arange(min(x_vals), max(x_vals), (max(x_vals) - min(x_vals))/1000)
     s = function(t)
     ax.plot(x_vals,fx_vals, marker="o")
     ax.plot(df_view["XVal"][step],function(df_view["XVal"][step]), marker="o", color="red")
-    line, = plt.plot(t, s, lw=2)
-    plt.plot([df_view["XVal"][step]-df_view["x-minus"][step], df_view["XVal"][step]+df_view["x-plus"][step]], [function(df_view["XVal"][step])]*2, lw=2, linestyle="solid", color="red")
-    plt.show()
+    line, = ax.plot(t, s, lw=2)
+    ax.plot([df_view["XVal"][step]-df_view["x-minus"][step], df_view["XVal"][step]+df_view["x-plus"][step]], [function(df_view["XVal"][step])]*2, lw=2, linestyle="solid", color="red")
+    
 
 
 def show_progress (filepath, function, closeup =False):
     df = pd.read_csv(filepath, sep=",")
+    lendf= len(df) -1
     if closeup:
-        for step in range(len(df)):
-            show_step(function, step, df)
+        fig, axs = plt.subplots(4, 3)
+        for step in range(lendf+1):
+            show_step(axs, function, step, df)
+        plt.show()
     # print(df)
     ax = plt.subplot()
     if closeup:
-        t = np.arange(-5, 5, 0.01)
+        t = np.arange(min(df["XVal"][lendf]-5,-5), max(df["XVal"][lendf]+5,5), 0.01)
     else:
-        t = np.arange(min(df["XVal"]), max(df["XVal"]), (max(df["XVal"])-min(df["XVal"]))/100)
+        t = np.arange(min(df["XVal"]), max(df["XVal"]), (max(df["XVal"])-min(df["XVal"]))/5000)
     s = function(t)
     line, = plt.plot(t, s, lw=2)
     
