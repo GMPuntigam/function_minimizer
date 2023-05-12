@@ -19,6 +19,8 @@ const SAMPLEPOINTS: usize = 6;
 const POPULATION_SIZE: usize = 400;
 const GENERATIONS: usize = 300;
 const MAXDEV: f32 = 100.0;
+const FUNCTION_HANDLE_UNTRAINED: fn(f32) -> f32 = |x|  (x-3.0).abs()+ 1.5*x.sin();
+
 
 #[derive(Debug)]
 pub struct Prediction{
@@ -137,6 +139,7 @@ fn main() {
     evaluate_champion(&champion, sub::func2, "data/quadratic_sinus.txt");
     evaluate_champion(&champion, sub::func3, "data/abs.txt");
     evaluate_champion(&champion, sub::func4, "data/x-squared.txt");
+    evaluate_champion(&champion, FUNCTION_HANDLE_UNTRAINED, "data/x-abs+sin.txt");
     
 }
 
@@ -190,8 +193,8 @@ fn evaluate_champion(champion: &Genome, f: fn(f32) -> f32, filepath: &str) {
             step+=1; 
             f_vals = f_vals.clone();
             f_vals_normalized = f_vals.iter().enumerate().map(|(_, x)| *x/f_max).collect::<Vec<_>>();
-            let input_values: Vec<f32> = [x_vals.clone().iter().enumerate().map(|(_, x)| *x-x_minus+x_guess).collect::<Vec<_>>(), f_vals.clone(), vec![x_best]].concat();
-            let input_values_normalized: Vec<f32> = [x_vals_normalized, f_vals_normalized, vec![x_best]].concat();
+            let input_values: Vec<f32> = [x_vals.clone().iter().enumerate().map(|(_, x)| *x-x_minus+x_guess).collect::<Vec<_>>(), f_vals.clone(), vec![(STEPS -step) as f32/STEPS as f32]].concat();
+            let input_values_normalized: Vec<f32> = [x_vals_normalized, f_vals_normalized, vec![(STEPS -step) as f32/STEPS as f32]].concat();
             let prediction: Vec<f64> = evaluator.evaluate(input_values_normalized.clone().iter().map(|x | *x as f64).collect() );
             let mut pred_x_guess = prediction[0] as f32;
             let mut pred_x_minus = prediction[1]as f32;
@@ -289,7 +292,7 @@ fn evaluate_on_testfunction(f: fn(f32) -> f32, mut evaluator:  MatrixRecurrentEv
         while ((x_minus + x_plus) > 1.0e-4_f32) & (step < STEPS) {
             // dbg!(&f_vals);
             step+=1;    
-            let input_values: Vec<f32> = [x_vals, f_vals, vec![x_best]].concat();
+            let input_values: Vec<f32> = [x_vals, f_vals, vec![(STEPS -step) as f32/STEPS as f32]].concat();
             let prediction: Vec<f64> = evaluator.evaluate(input_values.clone().iter().map(|x | *x as f64).collect() );
             // dbg!(&prediction);
             
@@ -370,24 +373,15 @@ fn evaluate_on_testfunction(f: fn(f32) -> f32, mut evaluator:  MatrixRecurrentEv
             // x_vals should be between 0 and 1 now, the first always0, the last always 1.
             // dbg!("new xvals",&x_vals);
 
-            if f(x_guess) + g(x_guess, y, y2) - (f(x_best) + g(x_best, y, y2)) < 0.0 {
-                counter = 0
-            } else {
-                counter+=1;
-                // if counter > 6 {
-                //     return FitnessEval {
-                //         fitness: f32::INFINITY,
-                //         x_worst: f32::INFINITY,
-                //         x_plus: f32::INFINITY,
-                //         x_minus: f32::INFINITY,
-                //         step: STEPS
-                //     };
-                // }
-            }
-            if f(x_guess) + g(x_guess, y, y2) < (f(x_best) + g(x_best, y, y2))
-            {
-                x_best = x_guess;
-            }
+            // if f(x_guess) + g(x_guess, y, y2) - (f(x_best) + g(x_best, y, y2)) < 0.0 {
+            //     counter = 0
+            // } else {
+            //     counter+=1;
+            // }
+            // if f(x_guess) + g(x_guess, y, y2) < (f(x_best) + g(x_best, y, y2))
+            // {
+            //     x_best = x_guess;
+            // }
         }
         if try_enum == 0 {
             x_worst = x_guess;
@@ -398,9 +392,8 @@ fn evaluate_on_testfunction(f: fn(f32) -> f32, mut evaluator:  MatrixRecurrentEv
         }
         
         step_worst = max(step_worst, step);
-        // dbg!(step_diff.clone());
-        // fitness_vec.push(f(x_guess) + (x_minus.abs() + x_plus.abs())*0.025 + step_diff.iter().sum::<f32>());
-        fitness_vec.push(f(x_guess) + g(x_guess, y, y2) + (x_minus + x_plus)*(1.0+step as f32).powi(2) + counter as f32);
+        fitness_vec.push(f(x_guess) + g(x_guess, y, y2) + (x_minus + x_plus)*(1.0+step as f32));
+        // fitness_vec.push(f(x_guess) + g(x_guess, y, y2) + (x_minus + x_plus)*(1.0+step as f32) + counter as f32);
         // fitness_vec.push(f(x_guess) + g(x_guess, y, y2));
         
     }

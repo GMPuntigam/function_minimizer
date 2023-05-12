@@ -6,6 +6,9 @@ from matplotlib import pyplot as plt
 import numpy as np
 from math import floor, ceil
 
+MAXPLOTS_X = 4
+MAXPLOTS_Y = 5
+
 def function_handle(x):
     fx = 0.01 * (x + 50.4)**4 - 0.7 * (x + 50.4)**2 + 0.1 * x
     return fx
@@ -20,6 +23,10 @@ def abs_function(x):
 
 def x_squared(x):
     fx = (x-50.0)**2
+    return fx
+
+def x_abs_sin(x):
+    fx = np.abs(x-3) + 1.5*np.sin(x)
     return fx
 
 
@@ -59,7 +66,7 @@ write_sub_rs([rust_str1, rust_str2, rust_str3, rust_str4])
 # retval = p.wait()
 # print("ran simulation")
 
-def show_step(axs, function, step, df):
+def show_step(axs, function, step, df, slide):
     df_view = df[df.index==step]
     samplepoints = int((len(df.columns) - 5)/2)
     # print(df_view)
@@ -69,8 +76,8 @@ def show_step(axs, function, step, df):
     for point in range(samplepoints):
         x_vals.append(df_view["x{}".format(point)][step])
         fx_vals.append(df_view["f(x{})".format(point)][step])
-    ax = axs[floor(step/3), step%3]
-    ax.set_title("Step {}".format(step))
+    ax = axs[floor(step/MAXPLOTS_X), step%MAXPLOTS_X]
+    ax.set_title("Step {}".format(step + slide*MAXPLOTS_X*MAXPLOTS_Y))
     t = np.arange(min(x_vals), max(x_vals), (max(x_vals) - min(x_vals))/1000)
     s = function(t)
     ax.plot(x_vals,fx_vals, marker="o")
@@ -83,11 +90,14 @@ def show_step(axs, function, step, df):
 def show_progress (filepath, function, closeup =False):
     df = pd.read_csv(filepath, sep=",")
     lendf= len(df) -1
+    n_plots = MAXPLOTS_X*MAXPLOTS_Y
     if closeup:
-        fig, axs = plt.subplots(ceil((lendf+1)/3), 3)
-        for step in range(lendf+1):
-            show_step(axs, function, step, df)
-        plt.show()
+        slides = ceil((lendf+1)/n_plots)
+        for slide in range(slides):
+            fig, axs = plt.subplots(MAXPLOTS_Y, MAXPLOTS_X)
+            for step in range(n_plots):
+                show_step(axs, function, step, df, slide)
+            plt.show()
     # print(df)
     ax = plt.subplot()
     if closeup:
@@ -124,3 +134,5 @@ show_progress(r"data\abs.txt", abs_function)
 show_progress(r"data\abs.txt", abs_function, True)
 show_progress(r"data\x-squared.txt", x_squared)
 show_progress(r"data\x-squared.txt", x_squared, True)
+show_progress(r"data\x-abs+sin.txt", x_abs_sin)
+show_progress(r"data\x-abs+sin.txt", x_abs_sin, True)
