@@ -111,9 +111,9 @@ checksum = "7fcaabb2fef8c910e7f4c7ce9f67a1283a1715879a7c230ca9d6d1ae31f16d91"
 
 [[package]]
 name = "favannat"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be230c1a96a6777089c257c712399ecbafa271ae750b8b67989ff55e1acd28ba"
+checksum = "59ba89d391845057012895de042c45771ed8e16d7246eb165212ce1c3b999818"
 dependencies = [
  "nalgebra",
  "nalgebra-sparse",
@@ -514,9 +514,9 @@ dependencies = [
 
 [[package]]
 name = "set_genome"
-version = "0.6.2"
+version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "464bff2f78a90ea10880964510c28dbb90dbe93a7ee2dfe89de7203fbd54faa2"
+checksum = "444e9efcc7b0e074f6361da151d1835d922a0f0c7c9a9af5109ede373ca03af3"
 dependencies = [
  "config",
  "favannat",

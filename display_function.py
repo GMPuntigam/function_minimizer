@@ -67,23 +67,26 @@ write_sub_rs([rust_str1, rust_str2, rust_str3, rust_str4])
 # print("ran simulation")
 
 def show_step(axs, function, step, df, slide):
-    df_view = df[df.index==step]
+    step_total = step + slide*MAXPLOTS_X*MAXPLOTS_Y
+    df_view = df[df.index==(step_total)]
     samplepoints = int((len(df.columns) - 5)/2)
     # print(df_view)
     
     x_vals = []
     fx_vals = []
+    if step_total not in df.index:
+        return None
     for point in range(samplepoints):
-        x_vals.append(df_view["x{}".format(point)][step])
-        fx_vals.append(df_view["f(x{})".format(point)][step])
+        x_vals.append(df_view["x{}".format(point)][step_total])
+        fx_vals.append(df_view["f(x{})".format(point)][step_total])
     ax = axs[floor(step/MAXPLOTS_X), step%MAXPLOTS_X]
-    ax.set_title("Step {}".format(step + slide*MAXPLOTS_X*MAXPLOTS_Y))
+    ax.set_title("Step {}".format(step_total))
     t = np.arange(min(x_vals), max(x_vals), (max(x_vals) - min(x_vals))/1000)
     s = function(t)
     ax.plot(x_vals,fx_vals, marker="o")
-    ax.plot(df_view["XVal"][step],function(df_view["XVal"][step]), marker="o", color="red")
+    ax.plot(df_view["XVal"][step_total],function(df_view["XVal"][step_total]), marker="o", color="red")
     line, = ax.plot(t, s, lw=2)
-    ax.plot([df_view["XVal"][step]-df_view["x-minus"][step], df_view["XVal"][step]+df_view["x-plus"][step]], [function(df_view["XVal"][step])]*2, lw=2, linestyle="solid", color="red")
+    ax.plot([df_view["XVal"][step_total]-df_view["x-minus"][step_total], df_view["XVal"][step_total]+df_view["x-plus"][step_total]], [function(df_view["XVal"][step_total])]*2, lw=2, linestyle="solid", color="red")
     
 
 
@@ -103,7 +106,7 @@ def show_progress (filepath, function, closeup =False):
     if closeup:
         t = np.arange(min(df["XVal"][lendf]-5,-5), max(df["XVal"][lendf]+5,5), 0.01)
     else:
-        t = np.arange(min(df["XVal"]), max(df["XVal"]), (max(df["XVal"])-min(df["XVal"]))/5000)
+        t = np.arange(min(df["XVal"]), max(df["XVal"]) + 5, (max(df["XVal"])-min(df["XVal"]) + 5)/5000)
     s = function(t)
     line, = plt.plot(t, s, lw=2)
     
