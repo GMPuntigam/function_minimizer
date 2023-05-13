@@ -12,8 +12,7 @@ pub struct FitnessEval{
     pub fitness: f32,
     pub x_worst: f32,
     pub x_minus: f32,
-    pub x_plus: f32,
-    pub step: usize
+    pub x_plus: f32
 }
 
 #[derive(Debug, Clone)]
