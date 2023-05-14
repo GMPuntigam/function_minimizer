@@ -5,6 +5,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import numpy as np
 from math import floor, ceil
+import os
 
 MAXPLOTS_X = 4
 MAXPLOTS_Y = 5
@@ -90,11 +91,11 @@ def show_step(axs, function, step, df, slide):
     
 
 
-def show_progress (filepath, function, closeup =False):
+def show_progress (filepath, function, closeup =False, steps = False):
     df = pd.read_csv(filepath, sep=",")
     lendf= len(df) -1
     n_plots = MAXPLOTS_X*MAXPLOTS_Y
-    if closeup:
+    if steps:
         slides = ceil((lendf+1)/n_plots)
         for slide in range(slides):
             fig, axs = plt.subplots(MAXPLOTS_Y, MAXPLOTS_X)
@@ -104,38 +105,48 @@ def show_progress (filepath, function, closeup =False):
     # print(df)
     ax = plt.subplot()
     if closeup:
-        t = np.arange(min(df["XVal"][lendf]-5,-5), max(df["XVal"][lendf]+5,5), 0.01)
+        t1 = np.arange(min(df["XVal"]), df["XVal"][lendf]-10, ((df["XVal"][lendf]-10)-min(df["XVal"]))/500)
+        t2 = np.arange(df["XVal"][lendf]-10, df["XVal"][lendf]+10, 0.01)
+        t3 = np.arange(df["XVal"][lendf]+10, max(df["XVal"]) + 10, (max(df["XVal"]) + 10-(df["XVal"][lendf]+10))/500)
+        t= np.concatenate((t1, t2, t3), axis=None)
     else:
         t = np.arange(min(df["XVal"]), max(df["XVal"]) + 5, (max(df["XVal"])-min(df["XVal"]) + 5)/5000)
     s = function(t)
     line, = plt.plot(t, s, lw=2)
     
     # plt.plot(df["XVal"][0], function_handle(df["XVal"][0]), 'bo')
-
+    
     x = df['XVal'].values
     y = [function(val) for val in df['XVal'].values]
-    u = np.diff(x)
-    v = np.diff(y)
-    pos_x = x[:-1] + u/2
-    pos_y = y[:-1] + v/2
-    norm = np.sqrt(u**2+v**2) 
-    ax.plot(x,y, marker="o")
-    ax.quiver(pos_x, pos_y, u/norm, v/norm, angles="xy", zorder=5, pivot="mid")
-    lendf= len(df) -1
-
+    if steps:
+        u = np.diff(x)
+        v = np.diff(y)
+        pos_x = x[:-1] + u/2
+        pos_y = y[:-1] + v/2
+        norm = np.sqrt(u**2+v**2) 
+        ax.plot(x,y, marker="o")
+        ax.quiver(pos_x, pos_y, u/norm, v/norm, angles="xy", zorder=5, pivot="mid")
+        lendf= len(df) -1
+    ax.plot(x[-1],y[-1], marker="x", color="red")
     plt.plot([df["XVal"][lendf]-df["x-minus"][lendf], df["XVal"][lendf]+df["x-plus"][lendf]], [function(df["XVal"][lendf])]*2, lw=2, linestyle="solid", color="red")
     if closeup:
         plt.ylim(function(df["XVal"][lendf])-10, function(df["XVal"][lendf])+10)
         plt.xlim(min(df["XVal"][lendf]-5,-5)-5,max(df["XVal"][lendf]+5,5)+ 5)
     plt.show()
 
-show_progress(r"data\powerfour.txt", function_handle)
-show_progress(r"data\powerfour.txt", function_handle, True)
-show_progress(r"data\quadratic_sinus.txt", sin_square_function)
-show_progress(r"data\quadratic_sinus.txt", sin_square_function, True)
-show_progress(r"data\abs.txt", abs_function)
-show_progress(r"data\abs.txt", abs_function, True)
-show_progress(r"data\x-squared.txt", x_squared)
-show_progress(r"data\x-squared.txt", x_squared, True)
-show_progress(r"data\x-abs+sin.txt", x_abs_sin)
-show_progress(r"data\x-abs+sin.txt", x_abs_sin, True)
+dir = "example_runs/2023-5-14"
+
+function_handle_dict = {"powerfour.txt": function_handle,
+                        "abs.txt": abs_function,
+                        "quadratic-sinus.txt": sin_square_function,
+                        "x-abs+sin.txt": x_abs_sin,
+                        "x-squared.txt": x_squared}
+
+for filename in os.listdir(dir):
+    if filename.endswith(".txt"): 
+        show_progress(os.sep.join([dir,filename]), function_handle_dict[filename])
+        show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], True)
+         # print(os.path.join(directory, filename))
+        continue
+    else:
+        continue

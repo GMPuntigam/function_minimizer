@@ -1,5 +1,6 @@
 mod sub;
 mod data_structs;
+use chrono::{Utc, Datelike};
 use data_structs::{FitnessEval, OverallFitness, TestfunctionEval, AllXVals};
 use favannat::{MatrixRecurrentFabricator, StatefulFabricator, StatefulEvaluator, MatrixRecurrentEvaluator};
 use rand::{
@@ -7,20 +8,20 @@ use rand::{
     seq::SliceRandom,
     thread_rng, Rng,
 };
-use std::{fs::OpenOptions};
+use std::{fs::{OpenOptions, File}};
 use std::io::prelude::*;
 use std::{cmp::Ordering, fs};
 use rayon::prelude::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use set_genome::{Genome, Parameters, Structure, Mutations, activations::Activation};
-
+use std::time::{Instant};
 use crate::data_structs::Prediction;
 
-const STEPS: usize = 25;
+const STEPS: usize = 50;
 const N_TRYS: usize = 10;
 const N_TESTFUNCTIONS: usize =4;
 const SAMPLEPOINTS: usize = 6;
 const POPULATION_SIZE: usize = 1000;
-const GENERATIONS: usize = 300;
+const GENERATIONS: usize = 100;
 const MAXDEV: f32 = 100.0;
 const FUNCTION_HANDLE_UNTRAINED: fn(f32) -> f32 = |x|  (x-3.0).abs()+ 1.5*x.sin();
 
@@ -112,13 +113,26 @@ fn main() {
         // dbg!(&population_fitnesses[0].0);
         // print!("Best fitness: {}", &population_fitnesses[0].0)
     }
+    // save the champion net
     print!("Global net\n {}", Genome::dot(&champion));
-    print!("Local net\n {}", Genome::dot(&champion));
-    evaluate_champion(&champion, sub::func1, "data/powerfour.txt");
-    evaluate_champion(&champion, sub::func2, "data/quadratic_sinus.txt");
-    evaluate_champion(&champion, sub::func3, "data/abs.txt");
-    evaluate_champion(&champion, sub::func4, "data/x-squared.txt");
-    evaluate_champion(&champion, FUNCTION_HANDLE_UNTRAINED, "data/x-abs+sin.txt");
+    let now = Utc::now();
+    let time_stamp = format!("{year}-{month}-{day}", year = now.year(), month = now.month(), day = now.day());
+    // fs::try_exists(format!("example_runs/{}/", time_stamp)).is_err();
+    fs::create_dir_all(format!("example_runs/{}/", time_stamp)).expect("Unable to create dir");
+    fs::write(
+        format!("example_runs/{}/winner.json", time_stamp),
+        serde_json::to_string(&champion).unwrap(),
+    )
+    .expect("Unable to write file");
+    evaluate_champion(&champion, sub::func1, format!("example_runs/{}/powerfour.txt", time_stamp), false);
+    evaluate_champion(&champion, sub::func2, format!("example_runs/{}/quadratic-sinus.txt", time_stamp), false);
+    let start = Instant::now();
+    evaluate_champion(&champion, sub::func2, format!("example_runs/{}/quadratic-sinus.txt", time_stamp), true);
+    let duration = start.elapsed();
+    println!("Champion took {:?} to find the minimum", duration);
+    evaluate_champion(&champion, sub::func3, format!("example_runs/{}/abs.txt", time_stamp), false);
+    evaluate_champion(&champion, sub::func4, format!("example_runs/{}/x-squared.txt", time_stamp), false);
+    evaluate_champion(&champion, FUNCTION_HANDLE_UNTRAINED, format!("example_runs/{}/x-abs+sin.txt", time_stamp), false);
     
 }
 fn generate_sampleheader()-> String {
@@ -152,7 +166,7 @@ fn evaluate_values(evaluator: &mut MatrixRecurrentEvaluator, input_values_normal
     (x_guess, x_minus, x_plus)
 }
 
-fn evaluate_champion(net: &Genome, f: fn(f32) -> f32, filepath: &str) {
+fn evaluate_champion(net: &Genome, f: fn(f32) -> f32, filepath: String, timeonly: bool) {
     let mut all_xvals = AllXVals{
         x_guess : 0.0,
         x_max: 0.0,
@@ -160,15 +174,13 @@ fn evaluate_champion(net: &Genome, f: fn(f32) -> f32, filepath: &str) {
         x_minus: 0.0,
         x_plus: 0.0
     };
-    let contents = String::from(format!(",x-best,Step,XVal,x-plus,x-minus\n"));
-    let mut sampleheader = generate_sampleheader();
-    sampleheader.push_str(&contents);
-    fs::write(filepath, sampleheader).expect("Unable to write file");
-    let mut file = OpenOptions::new()
-        .write(true)
-        .append(true)
-        .open(filepath)
-        .unwrap();
+    if !timeonly {
+        let contents = String::from(format!(",x-best,Step,XVal,x-plus,x-minus\n"));
+        let mut sampleheader = generate_sampleheader();
+        sampleheader.push_str(&contents);
+        fs::write(filepath.clone(), sampleheader).expect("Unable to write file");
+
+    }
     let mut x_vals_normalized;
     let x_guess : f32 = 0.0;
     let x_minus: f32 = MAXDEV;
@@ -202,11 +214,19 @@ fn evaluate_champion(net: &Genome, f: fn(f32) -> f32, filepath: &str) {
                 x_guess: all_xvals.x_guess,
                 x_plus: all_xvals.x_plus,
                 x_minus: all_xvals.x_minus};
-            print!("champion_global Step {}: {:?}\n",step, prediction); 
-            let samples_string: String = input_values.iter().map( |&id| id.to_string() + ",").collect();
-            if let Err(e) = writeln!(file, "{samples}{step},{x_val1},{x_plus},{x_minus}",samples =samples_string, step=step, x_val1 = all_xvals.x_guess, x_plus = all_xvals.x_plus, x_minus = all_xvals.x_minus) {
+            if !timeonly {
+                let mut file_write = OpenOptions::new()
+                .write(true)
+                .append(true)
+                .open(filepath.clone())
+                .unwrap();
+                print!("champion_global Step {}: {:?}\n",step, prediction); 
+                let samples_string: String = input_values.iter().map( |&id| id.to_string() + ",").collect();
+                if let Err(e) = writeln!(file_write, "{samples}{step},{x_val1},{x_plus},{x_minus}",samples =samples_string, step=step, x_val1 = all_xvals.x_guess, x_plus = all_xvals.x_plus, x_minus = all_xvals.x_minus) {
                 eprintln!("Couldn't write to file: {}", e);
             }
+            }
+            
             between = Uniform::from(0.0..all_xvals.x_minus + all_xvals.x_plus);
             x_vals = rand::thread_rng().sample_iter(&between).take(SAMPLEPOINTS).collect();
             x_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
