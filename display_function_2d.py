@@ -88,10 +88,9 @@ def show_step(axs, function, step, df, slide):
     ax.plot(df_view["XVal"][step_total],function(df_view["XVal"][step_total]), marker="o", color="red")
     line, = ax.plot(t, s, lw=2)
     ax.plot([df_view["XVal"][step_total]-df_view["x-minus"][step_total], df_view["XVal"][step_total]+df_view["x-plus"][step_total]], [function(df_view["XVal"][step_total])]*2, lw=2, linestyle="solid", color="red")
-    
 
-
-def show_progress (filepath, function, closeup =False, steps = False):
+def show_progress_surf (filepath, function, closeup =False, steps = False):
+    from matplotlib import cm
     df = pd.read_csv(filepath, sep=";")
     lendf= len(df) -1
     # n_plots = MAXPLOTS_X*MAXPLOTS_Y
@@ -103,7 +102,7 @@ def show_progress (filepath, function, closeup =False, steps = False):
     #             show_step(axs, function, step, df, slide)
     #         plt.show()
     # print(df)
-    ax = plt.subplot()
+    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
     # if closeup:
     #     t1 = np.arange(min(df["XVal"]), df["XVal"][lendf]-10, ((df["XVal"][lendf]-10)-min(df["XVal"]))/500)
     #     t2 = np.arange(df["XVal"][lendf]-10, df["XVal"][lendf]+10, 0.01)
@@ -121,7 +120,7 @@ def show_progress (filepath, function, closeup =False, steps = False):
         x_parts = x.split(",")
         x1.append(float(x_parts[0]))
         x2.append(float(x_parts[1]))
-    # y = [function(x1[i], x2[i]) for i in range(len(df['XVal'].values))]
+    xz = [function(x1[i], x2[i]) for i in range(len(df['XVal'].values))]
 
     if closeup:
         x = np.linspace(x1[-1]-10,x1[-1]+ 10, 500)
@@ -132,7 +131,58 @@ def show_progress (filepath, function, closeup =False, steps = False):
     z = np.array([function(i, j) for j in y for i in x])
     X, Y = np.meshgrid(x, y)
     Z = z.reshape(500, 500)
-    plt.contourf(X, Y, Z, 100)
+    ax.plot_surface(X, Y, Z, cmap=cm.coolwarm,
+                       linewidth=0, antialiased=True)
+
+    if steps:
+        u = np.diff(x1)
+        v = np.diff(x2)
+        w = np.diff(xz)
+        pos_x1 = x1[:-1] + u/2
+        pos_x2 = x2[:-1] + v/2
+        pos_z = xz[:-1] + w/2
+        norm = np.sqrt(u**2+v**2+w**2) 
+        ax.plot(x1,x2,xz, marker="o")
+        ax.quiver(pos_x1, pos_x2, pos_z, u/norm, v/norm, w/norm, pivot="middle")
+        lendf= len(df) -1
+    ax.plot(x1[-1],x2[-1], xz[-1], marker="x", color="red")
+    df_last = df[df["Step"] == len(df)]
+    x_minus_parts = df_last["x-minus"].values[0].split(",")
+    x_plus_parts = df_last["x-plus"].values[0].split(",")
+    plt.plot([x1[-1]-float(x_minus_parts[0]), x1[-1]+float(x_plus_parts[0])], [x2[-1]]*2, [xz[-1]]*2, lw=2, linestyle="solid", color="red")
+    plt.plot([x1[-1]]*2, [x2[-1]-float(x_minus_parts[1]), x2[-1]+float(x_plus_parts[1])], [xz[-1]]*2, lw=2, linestyle="solid", color="red")
+    if closeup:
+        plt.ylim(x2[-1]-10, x2[-1]+10)
+        plt.xlim(x1[-1]-10,x1[-1]+10)
+        ax.set_zlim(xz[-1]-0.1,xz[-1]+1)
+    plt.show()
+
+
+
+def show_progress (filepath, function, closeup =False, steps = False):
+    df = pd.read_csv(filepath, sep=";")
+    lendf= len(df) -1
+    ax = plt.subplot()
+    x1 = []
+    x2 = []
+    for x in df['XVal'].values:
+        x_parts = x.split(",")
+        x1.append(float(x_parts[0]))
+        x2.append(float(x_parts[1]))
+    xz = [function(x1[i], x2[i]) for i in range(len(df['XVal'].values))]
+
+    if closeup:
+        lims = [x1[-1]-5, x1[-1]+ 5, x2[-1]-5, x2[-1]+ 5]
+    else:
+        lims = [-100, 100, -50, 50]
+    x = np.linspace(lims[0], lims[1], 100)
+    y = np.linspace(lims[2], lims[3], 100)
+    z = np.array([function(i, j) for j in y for i in x])
+    X, Y = np.meshgrid(x, y)
+    Z = z.reshape(100, 100)
+    ax.imshow(Z, extent=lims, origin='lower', cmap='viridis', alpha=0.5)
+    ax.contour(X, Y, Z, 10, colors='black', alpha=0.4)
+
     if steps:
         u = np.diff(x1)
         v = np.diff(x2)
@@ -146,11 +196,11 @@ def show_progress (filepath, function, closeup =False, steps = False):
     df_last = df[df["Step"] == len(df)]
     x_minus_parts = df_last["x-minus"].values[0].split(",")
     x_plus_parts = df_last["x-plus"].values[0].split(",")
-    plt.plot([x1[-1]-float(x_minus_parts[0]), x1[-1]+float(x_plus_parts[0])], [x2[-1]]*2, lw=2, linestyle="solid", color="red")
-    plt.plot([x1[-1]]*2, [x2[-1]-float(x_minus_parts[1]), x2[-1]+float(x_plus_parts[1])], lw=2, linestyle="solid", color="red")
+    ax.plot([x1[-1]-float(x_minus_parts[0]), x1[-1]+float(x_plus_parts[0])], [x2[-1]]*2, lw=2, linestyle="solid", color="red")
+    ax.plot([x1[-1]]*2, [x2[-1]-float(x_minus_parts[1]), x2[-1]+float(x_plus_parts[1])], lw=2, linestyle="solid", color="red")
     if closeup:
-        plt.ylim(x2[-1]-10, x2[-1]+10)
-        plt.xlim(x1[-1]-10,x1[-1]+10)
+        plt.ylim(x2[-1]-5, x2[-1]+5)
+        plt.xlim(x1[-1]-5,x1[-1]+5)
     plt.show()
 
 dir = r"example_runs\2023-5-18"
@@ -163,10 +213,8 @@ function_handle_dict = {"powerfour.txt": function_handle,
 
 for filename in os.listdir(dir):
     if filename.endswith(".txt"): 
-        # show_progress(os.sep.join([dir,filename]), function_handle_dict[filename])
         show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], steps = True)
-        show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], steps = True, closeup=True)
-         # print(os.path.join(directory, filename))
+        show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], steps = False, closeup=True)
         continue
     else:
         continue
