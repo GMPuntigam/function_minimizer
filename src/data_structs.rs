@@ -10,7 +10,7 @@ pub struct Prediction{
 #[derive(Debug, Clone)]
 pub struct FitnessEval{
     pub fitness: f32,
-    pub x_worst: Vec<f32>,
+    pub x_guess: Vec<f32>,
     pub x_minus: Vec<f32>,
     pub x_plus: Vec<f32>
 }
@@ -33,7 +33,7 @@ pub struct AllXVals {
 }
 #[derive(Debug, Clone)]
 pub struct TestfunctionEval{
-    pub fitness_eval: FitnessEval,
+    pub fitness_eval: f32,
     pub function_name: String,
 }
 
