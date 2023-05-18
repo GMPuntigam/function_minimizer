@@ -121,12 +121,15 @@ def show_progress (filepath, function, closeup =False, steps = False):
         x_parts = x.split(",")
         x1.append(float(x_parts[0]))
         x2.append(float(x_parts[1]))
-    y = [function(x1[i], x2[i]) for i in range(len(df['XVal'].values))]
+    # y = [function(x1[i], x2[i]) for i in range(len(df['XVal'].values))]
 
-    
-    x = np.linspace(-100, 100, 500)
-    y = np.linspace(-100, 100, 500)
-    z = np.array([function(i, j) for j in x for i in x])
+    if closeup:
+        x = np.linspace(x1[-1]-10,x1[-1]+ 10, 500)
+        y = np.linspace(x2[-1]-10,x2[-1]+ 10, 500)
+    else:
+        x = np.linspace(-100, 100, 500)
+        y = np.linspace(-50, 50, 500)
+    z = np.array([function(i, j) for j in y for i in x])
     X, Y = np.meshgrid(x, y)
     Z = z.reshape(500, 500)
     plt.contourf(X, Y, Z, 100)
@@ -145,12 +148,12 @@ def show_progress (filepath, function, closeup =False, steps = False):
     x_plus_parts = df_last["x-plus"].values[0].split(",")
     plt.plot([x1[-1]-float(x_minus_parts[0]), x1[-1]+float(x_plus_parts[0])], [x2[-1]]*2, lw=2, linestyle="solid", color="red")
     plt.plot([x1[-1]]*2, [x2[-1]-float(x_minus_parts[1]), x2[-1]+float(x_plus_parts[1])], lw=2, linestyle="solid", color="red")
-    # if closeup:
-    #     plt.ylim(function(df["XVal"][lendf])-10, function(df["XVal"][lendf])+10)
-    #     plt.xlim(min(df["XVal"][lendf]-5,-5)-5,max(df["XVal"][lendf]+5,5)+ 5)
+    if closeup:
+        plt.ylim(x2[-1]-10, x2[-1]+10)
+        plt.xlim(x1[-1]-10,x1[-1]+10)
     plt.show()
 
-dir = r"example_runs\2023-5-17"
+dir = r"example_runs\2023-5-18"
 
 function_handle_dict = {"powerfour.txt": function_handle,
                         "abs.txt": abs_function,
@@ -162,6 +165,7 @@ for filename in os.listdir(dir):
     if filename.endswith(".txt"): 
         # show_progress(os.sep.join([dir,filename]), function_handle_dict[filename])
         show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], steps = True)
+        show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], steps = True, closeup=True)
          # print(os.path.join(directory, filename))
         continue
     else:
