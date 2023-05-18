@@ -17,14 +17,14 @@ use std::time::{Instant};
 use crate::{data_structs::Prediction};
 
 const DIMENSIONS: usize = 2;
-const STEPS: usize = 80;
+const STEPS: usize = 200;
 const N_TRYS: usize = 3;
 const N_TESTFUNCTIONS: usize =4;
 const SAMPLEPOINTS: usize = 6;
-const POPULATION_SIZE: usize = 500;
-const GENERATIONS: usize = 10;
+const POPULATION_SIZE: usize = 1000;
+const GENERATIONS: usize = 100;
 const TRAINFROMRESULTS: bool=false;
-const FUNCTION_HANDLE_UNTRAINED: fn(&Vec<f32>) -> f32 = |x|  (x[0]-3.0).abs()+ 1.5*x[0].sin()+ x[1].powi(2);
+const FUNCTION_HANDLE_UNTRAINED: fn(&Vec<f32>) -> f32 = |x|  (x[0]-3.14).powi(2) + (x[1]-2.72).powi(2)+ (3.0*x[0] +1.41).sin() + (4.0*x[1] -1.73).sin();
 
 
 
