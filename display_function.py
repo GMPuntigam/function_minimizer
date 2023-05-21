@@ -27,7 +27,7 @@ def x_squared(x):
     return fx
 
 def x_abs_sin(x):
-    fx = np.abs(x-3) + 1.5*np.sin(x)
+    fx = np.abs(x) + 1.9*np.sin(x)
     return fx
 
 
@@ -41,16 +41,17 @@ def function_to_rust_string(function_handle):
     function_str = re.sub(r'np\.abs\(' + variables[0] + r'\)',  variables[0] + r'.abs()', function_str)
     function_str = re.sub(r'(?<=\*\*)\d',  r'.powi(\g<0>)', function_str)
     function_str = re.sub(r'\*\*',  '', function_str)
+    function_str = function_str.replace(variables[0], variables[0]+"[0]")
     return function_str
 
 # print(function_to_rust_string(sin_square_function))
 
 def write_sub_rs(function_strs):
-    with open(r'src\sub.rs', 'w') as f:
+    with open(r'src\sub1d.rs', 'w') as f:
         for i, rust_str in enumerate(function_strs):
-            f.write("const FUNCTION_HANDLE{}: fn(f32) -> f32 = |x| {};\n".format(i+1, rust_str))
+            f.write("const FUNCTION_HANDLE{}: fn(&Vec<f32>) -> f32 = |x| {};\n".format(i+1, rust_str))
         for i, rust_str in enumerate(function_strs):
-            f.write("pub fn func{}(x: f32 ) -> f32 ".format(i+1) +"{" + "\n    FUNCTION_HANDLE{}(x)\n".format(i+1) + "}")
+            f.write("pub fn func{}(x :&Vec<f32> ) -> f32 ".format(i+1) +"{" + "\n    FUNCTION_HANDLE{}(x)\n".format(i+1) + "}")
 
 rust_str1 = function_to_rust_string(function_handle)
 rust_str2 = function_to_rust_string(sin_square_function)
@@ -70,9 +71,9 @@ write_sub_rs([rust_str1, rust_str2, rust_str3, rust_str4])
 def show_step(axs, function, step, df, slide):
     step_total = step + slide*MAXPLOTS_X*MAXPLOTS_Y
     df_view = df[df.index==(step_total)]
-    samplepoints = int((len(df.columns) - 5)/2)
+    samplepoints = int((len(df.columns) - 3)/2)
     # print(df_view)
-    
+    # ax = plt.subplot()
     x_vals = []
     fx_vals = []
     if step_total not in df.index:
@@ -87,12 +88,14 @@ def show_step(axs, function, step, df, slide):
     ax.plot(x_vals,fx_vals, marker="o")
     ax.plot(df_view["XVal"][step_total],function(df_view["XVal"][step_total]), marker="o", color="red")
     line, = ax.plot(t, s, lw=2)
-    ax.plot([df_view["XVal"][step_total]-df_view["x-minus"][step_total], df_view["XVal"][step_total]+df_view["x-plus"][step_total]], [function(df_view["XVal"][step_total])]*2, lw=2, linestyle="solid", color="red")
+    x_plus = float(df_view["x-plus"][step_total].split(",")[0])
+    x_minus = float(df_view["x-minus"][step_total].split(",")[0])
+    ax.plot([df_view["XVal"][step_total]-x_minus, df_view["XVal"][step_total]+x_plus], [function(df_view["XVal"][step_total])]*2, lw=2, linestyle="solid", color="red")
     
 
 
 def show_progress (filepath, function, closeup =False, steps = False):
-    df = pd.read_csv(filepath, sep=",")
+    df = pd.read_csv(filepath, sep=";")
     lendf= len(df) -1
     n_plots = MAXPLOTS_X*MAXPLOTS_Y
     if steps:
@@ -128,25 +131,28 @@ def show_progress (filepath, function, closeup =False, steps = False):
         ax.quiver(pos_x, pos_y, u/norm, v/norm, angles="xy", zorder=5, pivot="mid")
         lendf= len(df) -1
     ax.plot(x[-1],y[-1], marker="x", color="red")
-    plt.plot([df["XVal"][lendf]-df["x-minus"][lendf], df["XVal"][lendf]+df["x-plus"][lendf]], [function(df["XVal"][lendf])]*2, lw=2, linestyle="solid", color="red")
+    x_plus = float(df["x-plus"][lendf].split(",")[0])
+    x_minus = float(df["x-minus"][lendf].split(",")[0])
+    plt.plot([df["XVal"][lendf]-x_minus, df["XVal"][lendf]+x_plus], [function(df["XVal"][lendf])]*2, lw=2, linestyle="solid", color="red")
     if closeup:
         plt.ylim(function(df["XVal"][lendf])-10, function(df["XVal"][lendf])+10)
         plt.xlim(min(df["XVal"][lendf]-5,-5)-5,max(df["XVal"][lendf]+5,5)+ 5)
     plt.show()
 
-dir = "example_runs/2023-5-14"
+dir = r"example_runs1d\2023-5-20"
 
 function_handle_dict = {"powerfour.txt": function_handle,
                         "abs.txt": abs_function,
                         "quadratic-sinus.txt": sin_square_function,
-                        "x-abs+sin.txt": x_abs_sin,
+                        "abs_sin.txt": x_abs_sin,
                         "x-squared.txt": x_squared}
 
 for filename in os.listdir(dir):
     if filename.endswith(".txt"): 
-        show_progress(os.sep.join([dir,filename]), function_handle_dict[filename])
-        show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], True)
-         # print(os.path.join(directory, filename))
+        if filename in function_handle_dict.keys():
+            show_progress(os.sep.join([dir,filename]), function_handle_dict[filename])
+            show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], closeup = True)
+            # print(os.path.join(directory, filename))
         continue
     else:
         continue

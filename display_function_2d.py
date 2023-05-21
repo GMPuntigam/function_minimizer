@@ -2,7 +2,7 @@ import re
 import inspect
 import subprocess
 import pandas as pd
-from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt, ticker, colors as colors
 import numpy as np
 from math import floor, ceil
 import os
@@ -27,9 +27,16 @@ def x_squared(x, y):
     return fx
 
 def x_abs_sin(x, y):
-    fx = np.abs(x-3) + 1.5*np.sin(x) + y**2
+    fx = (x-3.14)**2 + (y-2.72)**2+ np.sin(3.0*x +1.41) + np.sin(4.0*y -1.73)
     return fx
 
+def rastrigin(x,y):
+    fx = 20.0 + x**2 - 10.0*np.cos((2.0*np.pi*x)) + y**2 - 10.0*np.cos((2.0*np.pi*y))
+    return fx
+
+def rosenbrock(x,y):
+    fx = 100.0*(y - x**2)**2 + (1.0 - x)**2
+    return fx
 
 # def function_to_rust_string(function_handle):
 #     text = inspect.getsource(function_handle)
@@ -159,7 +166,7 @@ def show_progress_surf (filepath, function, closeup =False, steps = False):
 
 
 
-def show_progress (filepath, function, closeup =False, steps = False):
+def show_progress (filepath, function, closeup =False, steps = False, logcontours = False):
     df = pd.read_csv(filepath, sep=";")
     lendf= len(df) -1
     ax = plt.subplot()
@@ -171,8 +178,10 @@ def show_progress (filepath, function, closeup =False, steps = False):
         x2.append(float(x_parts[1]))
     xz = [function(x1[i], x2[i]) for i in range(len(df['XVal'].values))]
 
-    if closeup:
+    if closeup and function != rosenbrock:
         lims = [x1[-1]-5, x1[-1]+ 5, x2[-1]-5, x2[-1]+ 5]
+    elif closeup and function == rosenbrock:
+        lims = [x1[-1]-3, x1[-1]+ 3, x2[-1]-3, x2[-1]+ 3]    
     else:
         lims = [-100, 100, -50, 50]
     x = np.linspace(lims[0], lims[1], 100)
@@ -180,9 +189,20 @@ def show_progress (filepath, function, closeup =False, steps = False):
     z = np.array([function(i, j) for j in y for i in x])
     X, Y = np.meshgrid(x, y)
     Z = z.reshape(100, 100)
-    ax.imshow(Z, extent=lims, origin='lower', cmap='viridis', alpha=0.5)
-    ax.contour(X, Y, Z, 10, colors='black', alpha=0.4)
-
+    if logcontours:
+        img = ax.imshow(Z, norm=colors.LogNorm(vmin=1 ,vmax= abs(Z.min()) + Z.max()), extent=lims, origin='lower', cmap='viridis', alpha=0.5)
+    elif function == rosenbrock and closeup:
+        img = ax.imshow(Z, norm=colors.LogNorm(vmin=1 , vmax= abs(Z.min()) + Z.max()), extent=lims, origin='lower', cmap='viridis', alpha=0.5)
+    else:
+        img = ax.imshow(Z, extent=lims, origin='lower', cmap='viridis', alpha=0.5)
+    if logcontours:
+        contours = ax.contour(X, Y, Z, 10,locator=ticker.LogLocator() , colors='black', alpha=0.4, zorder=6)
+    elif function == rosenbrock and closeup:
+        contours = ax.contour(X, Y, Z, 30,locator=ticker.LogLocator() , colors='black', alpha=0.4, zorder=6)
+    else:
+        contours = ax.contour(X, Y, Z, 10, colors='black', alpha=0.4)
+    ax.clabel(contours, inline=True, fontsize=8, fmt="%.0f")
+    plt.colorbar(img)
     if steps:
         u = np.diff(x1)
         v = np.diff(x2)
@@ -198,23 +218,33 @@ def show_progress (filepath, function, closeup =False, steps = False):
     x_plus_parts = df_last["x-plus"].values[0].split(",")
     ax.plot([x1[-1]-float(x_minus_parts[0]), x1[-1]+float(x_plus_parts[0])], [x2[-1]]*2, lw=2, linestyle="solid", color="red")
     ax.plot([x1[-1]]*2, [x2[-1]-float(x_minus_parts[1]), x2[-1]+float(x_plus_parts[1])], lw=2, linestyle="solid", color="red")
+    if function == rastrigin:
+        ax.plot(0,0, marker="x", color="lightgreen")
+    if function == rosenbrock:
+        ax.plot(1,1, marker="x", color="lightgreen")
     if closeup:
         plt.ylim(x2[-1]-5, x2[-1]+5)
         plt.xlim(x1[-1]-5,x1[-1]+5)
     plt.show()
 
-dir = r"example_runs\2023-5-18"
+dir = r"example_runs\2023-5-20"
 
 function_handle_dict = {"powerfour.txt": function_handle,
                         "abs.txt": abs_function,
                         "quadratic-sinus.txt": sin_square_function,
                         "x-abs+sin.txt": x_abs_sin,
-                        "x-squared.txt": x_squared}
+                        "x-squared.txt": x_squared,
+                        "rastringin.txt": rastrigin,
+                        "rosenbrock.txt": rosenbrock}
 
 for filename in os.listdir(dir):
     if filename.endswith(".txt"): 
-        show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], steps = True)
-        show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], steps = False, closeup=True)
-        continue
+        if filename == "abs.txt":
+            logcontours = False
+        else:  
+            logcontours = True
+        if filename in function_handle_dict.keys():
+            show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], steps = True, logcontours = logcontours)
+            show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], steps = False, closeup=True, logcontours = False)
     else:
         continue
