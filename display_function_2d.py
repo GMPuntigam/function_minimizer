@@ -216,10 +216,6 @@ def show_progress (filepath, function, closeup =False, steps = False, logcontour
     df_last = df[df["Step"] == len(df)]
     x_radius = df_last["radius"]
     circle = plt.Circle((x1[-1], x2[-1]), x_radius, color='r', fill=False)
-    # x_minus_parts = df_last["x-minus"].values[0].split(",")
-    # x_plus_parts = df_last["x-plus"].values[0].split(",")
-    # ax.plot([x1[-1]-float(x_minus_parts[0]), x1[-1]+float(x_plus_parts[0])], [x2[-1]]*2, lw=2, linestyle="solid", color="red")
-    # ax.plot([x1[-1]]*2, [x2[-1]-float(x_minus_parts[1]), x2[-1]+float(x_plus_parts[1])], lw=2, linestyle="solid", color="red")
     ax.add_patch(circle)
     if function == rastrigin:
         ax.plot(0,0, marker="x", color="lightgreen")

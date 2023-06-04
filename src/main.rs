@@ -20,9 +20,9 @@ const DIMENSIONS: usize = 2;
 const STEPS: usize = 200;
 const N_TRYS: usize = 3;
 const N_TESTFUNCTIONS: usize =6;
-const SAMPLEPOINTS: usize = 8;
-const POPULATION_SIZE: usize = 500;
-const GENERATIONS: usize = 50;
+const SAMPLEPOINTS: usize = 16;
+const POPULATION_SIZE: usize = 50;
+const GENERATIONS: usize = 200;
 const TRAINFROMRESULTS: bool=false;
 const FUNCTION_HANDLE_UNTRAINED1D: fn(&Vec<f32>) -> f32 = |x|  x[0].abs() + 1.9* x[0].sin();
 const FUNCTION_HANDLE_UNTRAINED: fn(&Vec<f32>) -> f32 = |x|  (x[0]-3.14).powi(2) + (x[1]-2.72).powi(2)+ (3.0*x[0] +1.41).sin() + (4.0*x[1] -1.73).sin();
@@ -209,14 +209,6 @@ fn evaluate_champion(net: &Genome, f: fn(&Vec<f32>) -> f32, filepath: String, ti
         fs::write(filepath.clone(), sampleheader).expect("Unable to write file");
 
     }
-    // let mut x_vals_normalized;
-    // let x_guess: Vec<f32> = vec![0.0; DIMENSIONS];
-    // let mut function_domain = util::FunctionDomain{
-        //     dimensions:DIMENSIONS,
-        //     samplepoints: SAMPLEPOINTS,
-        //     upper_limits: (0..DIMENSIONS).map(|i| x_guess[i] + max_dev[i]).collect::<Vec<_>>(),
-        //     lower_limits: (0..DIMENSIONS).map(|i| x_guess[i] - max_dev[i]).collect::<Vec<_>>()
-        // };
 
         let mut function_domain = util::CircleGeneratorInput{
             dimensions:DIMENSIONS,
@@ -224,13 +216,6 @@ fn evaluate_champion(net: &Genome, f: fn(&Vec<f32>) -> f32, filepath: String, ti
             radius: 70.0,
             center: vec![0.0, 0.0]
         };
-        // let mut all_xvals = AllXVals{
-        //     x_guess : vec![0.0; DIMENSIONS],
-        //     x_max: max_dev.clone(),
-        //     x_min: max_dev.clone(),
-        //     x_minus: max_dev.clone(),
-        //     x_plus: max_dev.clone()
-        // };
         let mut all_xvals = AllXValsCircle{
             x_guess : vec![0.0; DIMENSIONS],
             radius: 70.0,
