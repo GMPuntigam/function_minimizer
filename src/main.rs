@@ -2,7 +2,7 @@ mod sub;
 mod data_structs;
 mod util;
 use chrono::{Utc, Datelike};
-use data_structs::{FitnessEval, OverallFitness, TestfunctionEval, AllXVals};
+use data_structs::{OverallFitness, TestfunctionEval, AllXValsCircle, FitnessEvalCircle, PredictionCircle};
 use favannat::{MatrixRecurrentFabricator, StatefulFabricator, StatefulEvaluator, MatrixRecurrentEvaluator};
 use rand::{
     seq::SliceRandom,
@@ -11,17 +11,17 @@ use rand::{
 use std::{fs::{OpenOptions}, f32::consts::PI};
 use std::io::prelude::*;
 use std::{cmp::Ordering, fs};
-use rayon::prelude::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::{prelude::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator}};
 use set_genome::{Genome, Parameters, Structure, Mutations, activations::Activation};
 use std::time::{Instant};
-use crate::{data_structs::Prediction};
+// use crate::{data_structs::};
 
 const DIMENSIONS: usize = 2;
 const STEPS: usize = 200;
 const N_TRYS: usize = 3;
 const N_TESTFUNCTIONS: usize =6;
-const SAMPLEPOINTS: usize = 10;
-const POPULATION_SIZE: usize = 1000;
+const SAMPLEPOINTS: usize = 8;
+const POPULATION_SIZE: usize = 500;
 const GENERATIONS: usize = 50;
 const TRAINFROMRESULTS: bool=false;
 const FUNCTION_HANDLE_UNTRAINED1D: fn(&Vec<f32>) -> f32 = |x|  x[0].abs() + 1.9* x[0].sin();
@@ -33,10 +33,9 @@ const FUNCTION_HANDLE_RASTRIGIN: fn(&Vec<f32>) -> f32 = |x|  20.0 + (x[0]).powi(
 
 
 fn main() {
-    let max_dev: Vec<f32> = vec![60.0, 60.0];
     let n_inputs = 2*(SAMPLEPOINTS) + 1;
     let parameters = Parameters {
-        structure: Structure { number_of_inputs: n_inputs, number_of_outputs: 3, percent_of_connected_inputs: (1.0), outputs_activation: (Activation::Sigmoid), seed: (42) },
+        structure: Structure { number_of_inputs: n_inputs, number_of_outputs: 2, percent_of_connected_inputs: (1.0), outputs_activation: (Activation::Sigmoid), seed: (42) },
         mutations: vec![
             Mutations::ChangeWeights {
                 chance: 0.8,
@@ -87,7 +86,7 @@ fn main() {
         print!("Generation {} of {}\n",gen_iter, GENERATIONS);
         let mut population_fitnesses = network_population
             .par_iter()
-            .map(|a|evaluate_net_fitness(a, y, y2, &max_dev)).enumerate()
+            .map(|a|evaluate_net_fitness(a, y, y2)).enumerate()
             .collect::<Vec<_>>();
         population_fitnesses.sort_unstable_by(|a, b| match (a.1.fitness.is_nan(), b.1.fitness.is_nan()) {
             (true, true) => Ordering::Equal,
@@ -128,31 +127,32 @@ fn main() {
         serde_json::to_string(&champion).unwrap(),
     )
     .expect("Unable to write file");
-    evaluate_champion(&champion, sub::func1, format!("example_runs/{}/powerfour.txt", time_stamp), false, &max_dev);
-    time_evaluation(&champion, sub::func1, &max_dev);
-    evaluate_champion(&champion, sub::func2, format!("example_runs/{}/quadratic-sinus.txt", time_stamp), false, &max_dev);
-    time_evaluation(&champion, sub::func2, &max_dev);
-    evaluate_champion(&champion, sub::func3, format!("example_runs/{}/abs.txt", time_stamp), false, &max_dev);
-    time_evaluation(&champion, sub::func3, &max_dev);
-    evaluate_champion(&champion, sub::func4, format!("example_runs/{}/x-squared.txt", time_stamp), false, &max_dev);
-    time_evaluation(&champion, sub::func4, &max_dev);
+    evaluate_champion(&champion, sub::func1, format!("example_runs/{}/powerfour.txt", time_stamp), false);
+    time_evaluation(&champion, sub::func1);
+    evaluate_champion(&champion, sub::func2, format!("example_runs/{}/quadratic-sinus.txt", time_stamp), false);
+    time_evaluation(&champion, sub::func2);
+    evaluate_champion(&champion, sub::func3, format!("example_runs/{}/abs.txt", time_stamp), false);
+    time_evaluation(&champion, sub::func3,);
+    evaluate_champion(&champion, sub::func4, format!("example_runs/{}/x-squared.txt", time_stamp), false);
+    time_evaluation(&champion, sub::func4);
     // evaluate_champion(&champion, FUNCTION_HANDLE_UNTRAINED1D, format!("example_runs1d/{}/abs_sin.txt", time_stamp), false, &max_dev);
     // time_evaluation(&champion, FUNCTION_HANDLE_UNTRAINED1D, &max_dev);    
-    evaluate_champion(&champion, FUNCTION_HANDLE_UNTRAINED, format!("example_runs/{}/x-abs+sin.txt", time_stamp), false, &max_dev);
-    time_evaluation(&champion, FUNCTION_HANDLE_UNTRAINED, &max_dev);
+    evaluate_champion(&champion, FUNCTION_HANDLE_UNTRAINED, format!("example_runs/{}/x-abs+sin.txt", time_stamp), false);
+    time_evaluation(&champion, FUNCTION_HANDLE_UNTRAINED);
     // evaluate_champion(&champion, FUNCTION_HANDLE_HIMMELBLAU, format!("example_runs/{}/himmelblau.txt", time_stamp), false, &max_dev);
     // time_evaluation(&champion, FUNCTION_HANDLE_HIMMELBLAU, &max_dev);
-    evaluate_champion(&champion, FUNCTION_HANDLE_ROSENBROCK, format!("example_runs/{}/rosenbrock.txt", time_stamp), false, &max_dev);
-    time_evaluation(&champion, FUNCTION_HANDLE_ROSENBROCK, &max_dev);
-    evaluate_champion(&champion, FUNCTION_HANDLE_RASTRIGIN, format!("example_runs/{}/rastringin.txt", time_stamp), false, &max_dev);
-    time_evaluation(&champion, FUNCTION_HANDLE_RASTRIGIN, &max_dev);
+    evaluate_champion(&champion, FUNCTION_HANDLE_ROSENBROCK, format!("example_runs/{}/rosenbrock.txt", time_stamp), false);
+    time_evaluation(&champion, FUNCTION_HANDLE_ROSENBROCK);
+    evaluate_champion(&champion, FUNCTION_HANDLE_RASTRIGIN, format!("example_runs/{}/rastringin.txt", time_stamp), false);
+    time_evaluation(&champion, FUNCTION_HANDLE_RASTRIGIN);
     
 }
 
-fn time_evaluation(champion: &Genome,f: fn(&Vec<f32>) -> f32, max_dev: &Vec<f32>){
+fn time_evaluation(champion: &Genome,f: fn(&Vec<f32>) -> f32){
     let evaluations= 10;
     let mut f_vals: Vec<f32> = Vec::with_capacity(evaluations);
     let mut step_vec: Vec<usize>= Vec::with_capacity(evaluations);
+
     let mut x_vals: Vec<Vec<f32>>= Vec::with_capacity(evaluations);
     let mut durations: Vec<f32>= Vec::with_capacity(evaluations);
     for _ in 0..evaluations{
@@ -160,7 +160,7 @@ fn time_evaluation(champion: &Genome,f: fn(&Vec<f32>) -> f32, max_dev: &Vec<f32>
         let f_val: f32;
         let x_min: Vec<f32>;
         let steps: usize;
-        (f_val, x_min, steps)= evaluate_champion(&champion, f, "".to_string(), true, &max_dev);
+        (f_val, x_min, steps)= evaluate_champion(&champion, f, "".to_string(), true);
         let duration = start.elapsed();
         f_vals.push(f_val);
         x_vals.push(x_min);
@@ -200,64 +200,73 @@ fn median(numbers: &mut [f32]) -> f32 {
 }
 
 
-fn evaluate_champion(net: &Genome, f: fn(&Vec<f32>) -> f32, filepath: String, timeonly: bool, max_dev: &Vec<f32>) -> (f32, Vec<f32>, usize) {
+fn evaluate_champion(net: &Genome, f: fn(&Vec<f32>) -> f32, filepath: String, timeonly: bool) -> (f32, Vec<f32>, usize) {
     
     if !timeonly {
-        let contents = String::from(format!(";Step;XVal;x-plus;x-minus\n"));
+        let contents = String::from(format!(";Step;XVal;radius\n"));
         let mut sampleheader = util::generate_sampleheader(SAMPLEPOINTS,DIMENSIONS);
         sampleheader.push_str(&contents);
         fs::write(filepath.clone(), sampleheader).expect("Unable to write file");
 
     }
     // let mut x_vals_normalized;
-    let x_guess: Vec<f32> = vec![0.0; DIMENSIONS];
-    let mut function_domain = util::FunctionDomain{
-        dimensions:DIMENSIONS,
-        samplepoints: SAMPLEPOINTS,
-        upper_limits: (0..DIMENSIONS).map(|i| x_guess[i] + max_dev[i]).collect::<Vec<_>>(),
-        lower_limits: (0..DIMENSIONS).map(|i| x_guess[i] - max_dev[i]).collect::<Vec<_>>()
-    };
-    let mut all_xvals = AllXVals{
-        x_guess : vec![0.0; DIMENSIONS],
-        x_max: max_dev.clone(),
-        x_min: max_dev.clone(),
-        x_minus: max_dev.clone(),
-        x_plus: max_dev.clone()
-    };
-    let mut set_of_sample_points = util::generate_1d_samplepoints(&function_domain, 0);
-    let mut f_vals = vec![0.0; SAMPLEPOINTS];
+    // let x_guess: Vec<f32> = vec![0.0; DIMENSIONS];
+    // let mut function_domain = util::FunctionDomain{
+        //     dimensions:DIMENSIONS,
+        //     samplepoints: SAMPLEPOINTS,
+        //     upper_limits: (0..DIMENSIONS).map(|i| x_guess[i] + max_dev[i]).collect::<Vec<_>>(),
+        //     lower_limits: (0..DIMENSIONS).map(|i| x_guess[i] - max_dev[i]).collect::<Vec<_>>()
+        // };
+
+        let mut function_domain = util::CircleGeneratorInput{
+            dimensions:DIMENSIONS,
+            samplepoints: SAMPLEPOINTS,
+            radius: 70.0,
+            center: vec![0.0, 0.0]
+        };
+        // let mut all_xvals = AllXVals{
+        //     x_guess : vec![0.0; DIMENSIONS],
+        //     x_max: max_dev.clone(),
+        //     x_min: max_dev.clone(),
+        //     x_minus: max_dev.clone(),
+        //     x_plus: max_dev.clone()
+        // };
+        let mut all_xvals = AllXValsCircle{
+            x_guess : vec![0.0; DIMENSIONS],
+            radius: 70.0,
+        };
+    // let mut set_of_sample_points = util::generate_1d_samplepoints(&function_domain, 0);
+    let mut set_of_sample_points: util::SetOfSamplesCircle;
+    let mut f_vals: Vec<f32>;
     let mut f_vals_normalized: Vec<f32>;
     let mut evaluator = MatrixRecurrentFabricator::fabricate(net).expect("didnt work");
     let mut step = 0;
     let mut delta_fitness = f32::INFINITY;
     let mut last_fitness = f32::INFINITY;
-    while (step < STEPS) & (delta_fitness.abs() > 1e-6_f32) {
+    while (step < STEPS) & (delta_fitness.abs() > 1e-8_f32) {
         step+=1;
-        for dim in 0..DIMENSIONS{
-            
-            set_of_sample_points = util::generate_1d_samplepoints(&function_domain, dim);
-            all_xvals.x_max= set_of_sample_points.max;
-            all_xvals.x_min= set_of_sample_points.min;
-            f_vals = set_of_sample_points.coordinates.iter().enumerate().map(|(_, x)| f(x)).collect::<Vec<_>>();
-            f_vals_normalized = normalise_vector(&f_vals);
-            let input_values: Vec<f32> = [set_of_sample_points.coordinates_by_dimension_normalised[dim].clone(), f_vals_normalized.clone(), vec![(STEPS -step) as f32/STEPS as f32]].concat();
-            network_step(input_values, &mut evaluator, &mut all_xvals, dim, false);
-            
-            function_domain = util::FunctionDomain{
-                dimensions:DIMENSIONS,
-                samplepoints: SAMPLEPOINTS,
-                upper_limits: (0..DIMENSIONS).map(|i| all_xvals.x_guess[i] + all_xvals.x_plus[i]).collect::<Vec<_>>(),
-                lower_limits: (0..DIMENSIONS).map(|i| all_xvals.x_guess[i] - all_xvals.x_minus[i]).collect::<Vec<_>>()
-            };
-        }
+        set_of_sample_points = util::generate_samplepoint_2d_random_slice(&function_domain);
+        f_vals = set_of_sample_points.coordinates.iter().enumerate().map(|(_, x)| f(x)).collect::<Vec<_>>();
+        f_vals_normalized = normalise_vector(&f_vals);
+        let input_values: Vec<f32> = [set_of_sample_points.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![(STEPS -step) as f32/STEPS as f32]].concat();
+        network_step(input_values, &mut evaluator, &mut all_xvals, &function_domain);
+        let vector_start = all_xvals.x_guess.clone();
+        let vector_end = function_domain.center.clone();
+        let set_of_samples_line = util::generate_samplepoint_vector(&vector_start, &vector_end, SAMPLEPOINTS);
+        f_vals = set_of_samples_line.coordinates.iter().enumerate().map(|(_, x)| f(x).clone()).collect::<Vec<_>>();
+        f_vals_normalized = normalise_vector(&f_vals);
+        let input_values: Vec<f32> = [set_of_samples_line.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![(STEPS -step) as f32/STEPS as f32]].concat();
+        network_step_line(input_values, &mut evaluator, &mut all_xvals, &vector_start, &vector_end);
+
+        function_domain.center = all_xvals.x_guess.clone();
+        function_domain.radius = all_xvals.radius.clone();
         delta_fitness = last_fitness - f(&all_xvals.x_guess);
         last_fitness = f(&all_xvals.x_guess);
         if !timeonly {
-            let prediction =Prediction {
+            let prediction =PredictionCircle {
                 fitness: f(&all_xvals.x_guess),
                 x_guess: all_xvals.x_guess.clone(),
-                x_plus: all_xvals.x_plus.clone(),
-                x_minus: all_xvals.x_minus.clone()};
+                radius: all_xvals.radius.clone()};
             let mut file_write = OpenOptions::new()
             .write(true)
             .append(true)
@@ -267,46 +276,50 @@ fn evaluate_champion(net: &Genome, f: fn(&Vec<f32>) -> f32, filepath: String, ti
             let coordinates_string: String = set_of_sample_points.coordinates.iter().map(|x|  x.iter().map( |&id| id.to_string()).collect::<Vec<String>>().join(",")).collect::<Vec<String>>().join(";");
             let f_vals_string: String = f_vals.iter().map( |&id| id.to_string()).collect::<Vec<String>>().join(";");
             let x_guess_string: String = all_xvals.x_guess.clone().into_iter().map(|i| i.to_string()).collect::<Vec<String>>().join(",");
-            let x_plus_string: String = all_xvals.x_plus.clone().into_iter().map(|i| i.to_string()).collect::<Vec<String>>().join(",");
-            let x_minus_string: String = all_xvals.x_minus.clone().into_iter().map(|i| i.to_string()).collect::<Vec<String>>().join(",");
-            if let Err(e) = writeln!(file_write, "{coords};{fvals};{step};{x_val1};{x_plus};{x_minus}",coords =coordinates_string,fvals=f_vals_string, step=step, x_val1 =x_guess_string , x_plus = x_plus_string, x_minus = x_minus_string) {
+            let radius_string: String = all_xvals.radius.to_string();
+            if let Err(e) = writeln!(file_write, "{coords};{fvals};{step};{x_val1};{radius}",coords =coordinates_string,fvals=f_vals_string, step=step, x_val1 =x_guess_string , radius = radius_string) {
                 eprintln!("Couldn't write to file: {}", e);
             }
-        }
-    } 
+        } 
+    }
     (f(&all_xvals.x_guess), all_xvals.x_guess, step)
 }
 
-fn evaluate_values(evaluator: &mut MatrixRecurrentEvaluator, input_values_normalized: Vec<f32>, all_xvals: &AllXVals, dim:usize, inneronly:bool) ->(f32, f32, f32) {
+fn evaluate_values_line(evaluator: &mut MatrixRecurrentEvaluator, input_values_normalized: Vec<f32>, vector_start: &Vec<f32>, vector_end: &Vec<f32>) ->Vec<f32> {
     let prediction: Vec<f64> = evaluator.evaluate(input_values_normalized.clone().iter().map(|x | *x as f64).collect() );
     let pred_x_guess: f32 = prediction[0] as f32;
-    let pred_x_minus: f32 = prediction[1] as f32;
-    let pred_x_plus: f32 = prediction[2] as f32;
-    let mut x_minus: f32;
-    let mut x_plus: f32;
-    let mut x_guess: f32 = pred_x_guess*(all_xvals.x_max[dim]-all_xvals.x_min[dim])+all_xvals.x_min[dim];
-    x_minus = all_xvals.x_minus[dim]*(0.5+pred_x_minus);
-    if x_minus.is_nan() {
-        x_minus = all_xvals.x_minus[dim];
-    }
-    x_plus = all_xvals.x_plus[dim]*(0.5+pred_x_plus);
-    if x_plus.is_nan() {
-        x_plus = all_xvals.x_plus[dim];
-    }
-    if x_guess.is_nan() {
-        if (all_xvals.x_max[dim]-all_xvals.x_min[dim]).abs() <1e-8_f32 {
-            x_guess = all_xvals.x_min[dim];
-        }
-        if x_guess.is_nan() {
-            x_guess = all_xvals.x_guess[dim];
-        }
+    // let pred_radius: f32 = prediction[1] as f32;
+    let mut x_guess: Vec<f32> = vec![0.0, 0.0];
+    for dim in 0..2{
+        x_guess[dim] = pred_x_guess*(vector_end[dim]-vector_start[dim])+vector_start[dim];
     }
 
-    (x_guess, x_minus, x_plus)
+    x_guess
 }
 
-fn network_step(input_values: Vec<f32>, evaluator: &mut MatrixRecurrentEvaluator,  all_xvals: &mut AllXVals, dim:usize, inneronly:bool) -> () {
-            (all_xvals.x_guess[dim], all_xvals.x_minus[dim], all_xvals.x_plus[dim]) = evaluate_values(evaluator, input_values, all_xvals, dim, inneronly);
+fn evaluate_values(evaluator: &mut MatrixRecurrentEvaluator, input_values_normalized: Vec<f32>, all_xvals: &AllXValsCircle, function_domain: & util::CircleGeneratorInput) ->(Vec<f32>, f32) {
+    let prediction: Vec<f64> = evaluator.evaluate(input_values_normalized.clone().iter().map(|x | *x as f64).collect() );
+    let pred_x_guess: f32 = prediction[0] as f32;
+    let pred_radius: f32 = prediction[1] as f32;
+    let mut radius: f32;
+    radius = all_xvals.radius*(0.5+pred_radius);
+    let mut x_guess: Vec<f32> = vec![0.0, 0.0];
+    x_guess[0] = function_domain.center[0] + (pred_x_guess*2.0*PI).cos()*all_xvals.radius;
+    x_guess[1] = function_domain.center[1] + (pred_x_guess*2.0*PI).sin()*all_xvals.radius;
+
+    if radius.is_nan() {
+        radius = all_xvals.radius;
+    }
+
+    (x_guess, radius)
+}
+
+fn network_step(input_values: Vec<f32>, evaluator: &mut MatrixRecurrentEvaluator,  all_xvals: &mut AllXValsCircle, functiondomain: & util::CircleGeneratorInput) -> () {
+            (all_xvals.x_guess, all_xvals.radius) = evaluate_values(evaluator, input_values, all_xvals, functiondomain);
+}
+
+fn network_step_line(input_values: Vec<f32>, evaluator: &mut MatrixRecurrentEvaluator,  all_xvals: &mut AllXValsCircle, vector_start: &Vec<f32>, vector_end: &Vec<f32>) -> () {
+    (all_xvals.x_guess) = evaluate_values_line(evaluator, input_values, vector_start, vector_end);
 }
 
 fn normalise_vector(vec: &Vec<f32>) -> Vec<f32> {
@@ -316,69 +329,57 @@ fn normalise_vector(vec: &Vec<f32>) -> Vec<f32> {
     vec_normalized
 }
 
-fn evaluate_on_testfunction(f: fn(&Vec<f32>) -> f32, y: f32, z:f32, evaluator:  &mut MatrixRecurrentEvaluator, max_dev: &Vec<f32>) -> f32 {
+fn evaluate_on_testfunction(f: fn(&Vec<f32>) -> f32, y: f32, z:f32, evaluator:  &mut MatrixRecurrentEvaluator) -> f32 {
     let mut fitness_vec= Vec::with_capacity(N_TRYS);
-    let mut x_guess: Vec<f32>;
+    // let mut x_guess: Vec<f32>;
     let mut scores_vec= Vec::with_capacity(N_TRYS);
     
     let g: fn(&Vec<f32>, f32, f32) -> f32 = |x,y,z|  (0..DIMENSIONS).map(|i| y*(x[i]*z).sin()).sum();
     for _try_enum in 0..N_TRYS {
-        x_guess = vec![0.0;DIMENSIONS];
-        let mut function_domain = util::FunctionDomain{
+
+        let mut function_domain = util::CircleGeneratorInput{
             dimensions:DIMENSIONS,
             samplepoints: SAMPLEPOINTS,
-            upper_limits: (0..DIMENSIONS).map(|i| x_guess[i] + max_dev[i]).collect::<Vec<_>>(),
-            lower_limits: (0..DIMENSIONS).map(|i| x_guess[i] - max_dev[i]).collect::<Vec<_>>()
+            radius: 70.0,
+            center: vec![0.0, 0.0]
         };
-        let mut all_xvals = AllXVals{
+        let mut all_xvals = AllXValsCircle{
             x_guess : vec![0.0; DIMENSIONS],
-            x_max: max_dev.clone(),
-            x_min: max_dev.clone(),
-            x_minus: max_dev.clone(),
-            x_plus: max_dev.clone()
+            radius: 70.0,
         };
         let mut f_vals: Vec<f32>;
         let mut f_vals_normalized: Vec<f32>;
         let mut step = 0;
         let mut delta_fitness = f32::INFINITY;
         let mut last_fitness = f32::INFINITY;
-        while (step < STEPS) & (delta_fitness.abs() > 1e-6_f32) {
-            for dim in 0..DIMENSIONS{
-                step+=1;   
-                let set_of_sample_points = util::generate_1d_samplepoints(&function_domain, dim);
-                all_xvals.x_max= set_of_sample_points.max;
-                all_xvals.x_min= set_of_sample_points.min;
-                f_vals = set_of_sample_points.coordinates.iter().enumerate().map(|(_, x)| f(x).clone() +g(x, y, z)).collect::<Vec<_>>();
-                f_vals_normalized = normalise_vector(&f_vals);
-                let input_values: Vec<f32> = [set_of_sample_points.coordinates_by_dimension_normalised[dim].clone(), f_vals_normalized.clone(), vec![(STEPS -step) as f32/STEPS as f32]].concat();
-                network_step(input_values, evaluator, &mut all_xvals, dim, false);
-                if all_xvals.x_guess.iter().any(|i| i.is_nan()) || all_xvals.x_minus.iter().any(|i| i.is_nan())|| all_xvals.x_plus.iter().any(|i| i.is_nan()){
-                    return f32::INFINITY;
-                }
-                let lower_range_limit = all_xvals.x_guess.iter().enumerate().map(|(i, val)| val - all_xvals.x_minus[i]).collect::<Vec<f32>>();
-                let upper_range_limit = all_xvals.x_guess.iter().enumerate().map(|(i, val)| val + all_xvals.x_plus[i]).collect::<Vec<f32>>();
-                if upper_range_limit.iter().enumerate().any(|(i, val)| val - lower_range_limit[i] == f32::INFINITY)  {
-                    return f32::INFINITY;
-                };
-                if upper_range_limit.iter().enumerate().any(|(i, val)| *val < lower_range_limit[i]){
-                    return f32::INFINITY;
-                }
-                function_domain = util::FunctionDomain{
-                    dimensions:DIMENSIONS,
-                    samplepoints: SAMPLEPOINTS,
-                    upper_limits: (0..DIMENSIONS).map(|i| all_xvals.x_guess[i] + all_xvals.x_plus[i]).collect::<Vec<_>>(),
-                    lower_limits: (0..DIMENSIONS).map(|i| all_xvals.x_guess[i] - all_xvals.x_minus[i]).collect::<Vec<_>>()
-                };
+        while (step < STEPS) & (delta_fitness.abs() > 1e-8_f32) {
+            step+=1;   
+            let set_of_sample_points = util::generate_samplepoint_2d_random_slice(&function_domain);
+            f_vals = set_of_sample_points.coordinates.iter().enumerate().map(|(_, x)| f(x).clone() +g(x, y, z)).collect::<Vec<_>>();
+            f_vals_normalized = normalise_vector(&f_vals);
+            let input_values: Vec<f32> = [set_of_sample_points.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![(STEPS -step) as f32/STEPS as f32]].concat();
+            network_step(input_values, evaluator, &mut all_xvals, &function_domain);
+            if all_xvals.x_guess.iter().any(|i| i.is_nan()) || all_xvals.radius.is_nan(){
+                return f32::INFINITY;
             }
+            let vector_start = all_xvals.x_guess.clone();
+            let vector_end = function_domain.center.clone();
+            let set_of_samples_line = util::generate_samplepoint_vector(&vector_start, &vector_end, SAMPLEPOINTS);
+            f_vals = set_of_samples_line.coordinates.iter().enumerate().map(|(_, x)| f(x).clone() +g(x, y, z)).collect::<Vec<_>>();
+            f_vals_normalized = normalise_vector(&f_vals);
+            let input_values: Vec<f32> = [set_of_samples_line.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![(STEPS -step) as f32/STEPS as f32]].concat();
+            network_step_line(input_values, evaluator, &mut all_xvals, &vector_start, &vector_end);
+            
+            function_domain.center = all_xvals.x_guess.clone();
+            function_domain.radius = all_xvals.radius.clone();
             delta_fitness = last_fitness - (f(&all_xvals.x_guess) + g(&all_xvals.x_guess, y, z));
             last_fitness = f(&all_xvals.x_guess) + g(&all_xvals.x_guess, y, z);
         } 
         let fitness = f(&all_xvals.x_guess) + g(&all_xvals.x_guess, y, z);
-        let fitness_eval = FitnessEval{
+        let fitness_eval = FitnessEvalCircle{
             fitness: fitness.clone(),
             x_guess: all_xvals.x_guess.clone(),
-            x_plus: all_xvals.x_plus.clone(),
-            x_minus: all_xvals.x_minus.clone()
+            radius: all_xvals.radius.clone()
         };
         fitness_vec.push(fitness_eval.clone());
         scores_vec.push(fitness);
@@ -389,29 +390,29 @@ fn evaluate_on_testfunction(f: fn(&Vec<f32>) -> f32, y: f32, z:f32, evaluator:  
     
 }
 
-fn evaluate_net_fitness(net: &Genome, y: f32, z:f32, max_dev: &Vec<f32>) -> OverallFitness {
+fn evaluate_net_fitness(net: &Genome, y: f32, z:f32) -> OverallFitness {
     let mut fitness_vec: Vec<f32>= Vec::with_capacity(N_TESTFUNCTIONS);
     
     let mut evaluator_global = MatrixRecurrentFabricator::fabricate(net).expect("didnt work");
-    let mut fitness = evaluate_on_testfunction(sub::func1,y, z, &mut evaluator_global, max_dev);
+    let mut fitness = evaluate_on_testfunction(sub::func1,y, z, &mut evaluator_global);
     fitness_vec.push(fitness);
     evaluator_global.reset_internal_state();
-    fitness = evaluate_on_testfunction(sub::func2,y, z, &mut evaluator_global, max_dev);
+    fitness = evaluate_on_testfunction(sub::func2,y, z, &mut evaluator_global);
     fitness_vec.push(fitness);
     evaluator_global.reset_internal_state();
-    fitness = evaluate_on_testfunction(sub::func3,y, z, &mut evaluator_global, max_dev);
+    fitness = evaluate_on_testfunction(sub::func3,y, z, &mut evaluator_global);
     fitness_vec.push(fitness);
 
     evaluator_global.reset_internal_state();
-    fitness = evaluate_on_testfunction(sub::func4,y, z, &mut evaluator_global, max_dev);
+    fitness = evaluate_on_testfunction(sub::func4,y, z, &mut evaluator_global);
     fitness_vec.push(fitness);
     evaluator_global.reset_internal_state();
-    fitness = evaluate_on_testfunction(sub::func5,y, z, &mut evaluator_global, max_dev);
+    fitness = evaluate_on_testfunction(sub::func5,y, z, &mut evaluator_global);
     fitness_vec.push(fitness);
     evaluator_global.reset_internal_state();
-    fitness = evaluate_on_testfunction(sub::func6,y, z, &mut evaluator_global, max_dev);
+    fitness = evaluate_on_testfunction(sub::func6,y, z, &mut evaluator_global);
     fitness_vec.push(fitness);
-    // fitness_max = fitness_vec.iter().copied().fold(f32::NAN, f32::max);
+    // let fitness_max = fitness_vec.iter().copied().fold(f32::NAN, f32::max);
     let fitness_average = fitness_vec.iter().sum::<f32>()/6.0;
     OverallFitness{
         fitness: fitness_average,

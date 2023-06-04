@@ -214,10 +214,13 @@ def show_progress (filepath, function, closeup =False, steps = False, logcontour
         lendf= len(df) -1
     ax.plot(x1[-1],x2[-1], marker="x", color="red")
     df_last = df[df["Step"] == len(df)]
-    x_minus_parts = df_last["x-minus"].values[0].split(",")
-    x_plus_parts = df_last["x-plus"].values[0].split(",")
-    ax.plot([x1[-1]-float(x_minus_parts[0]), x1[-1]+float(x_plus_parts[0])], [x2[-1]]*2, lw=2, linestyle="solid", color="red")
-    ax.plot([x1[-1]]*2, [x2[-1]-float(x_minus_parts[1]), x2[-1]+float(x_plus_parts[1])], lw=2, linestyle="solid", color="red")
+    x_radius = df_last["radius"]
+    circle = plt.Circle((x1[-1], x2[-1]), x_radius, color='r', fill=False)
+    # x_minus_parts = df_last["x-minus"].values[0].split(",")
+    # x_plus_parts = df_last["x-plus"].values[0].split(",")
+    # ax.plot([x1[-1]-float(x_minus_parts[0]), x1[-1]+float(x_plus_parts[0])], [x2[-1]]*2, lw=2, linestyle="solid", color="red")
+    # ax.plot([x1[-1]]*2, [x2[-1]-float(x_minus_parts[1]), x2[-1]+float(x_plus_parts[1])], lw=2, linestyle="solid", color="red")
+    ax.add_patch(circle)
     if function == rastrigin:
         ax.plot(0,0, marker="x", color="lightgreen")
     if function == rosenbrock:
@@ -227,7 +230,7 @@ def show_progress (filepath, function, closeup =False, steps = False, logcontour
         plt.xlim(x1[-1]-5,x1[-1]+5)
     plt.show()
 
-dir = r"example_runs\2023-5-20"
+dir = r"example_runs\2023-6-4"
 
 function_handle_dict = {"powerfour.txt": function_handle,
                         "abs.txt": abs_function,
@@ -245,6 +248,6 @@ for filename in os.listdir(dir):
             logcontours = True
         if filename in function_handle_dict.keys():
             show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], steps = True, logcontours = logcontours)
-            show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], steps = False, closeup=True, logcontours = False)
+            show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], steps = True, closeup=True, logcontours = False)
     else:
         continue

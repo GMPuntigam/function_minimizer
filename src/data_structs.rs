@@ -7,12 +7,26 @@ pub struct Prediction{
     pub x_minus: Vec<f32>,
     pub x_plus: Vec<f32>
 }
+#[derive(Debug)]
+pub struct PredictionCircle{
+    pub fitness: f32,
+    pub x_guess: Vec<f32>,
+    pub radius: f32
+}
+
 #[derive(Debug, Clone)]
 pub struct FitnessEval{
     pub fitness: f32,
     pub x_guess: Vec<f32>,
     pub x_minus: Vec<f32>,
     pub x_plus: Vec<f32>
+}
+
+#[derive(Debug, Clone)]
+pub struct FitnessEvalCircle{
+    pub fitness: f32,
+    pub x_guess: Vec<f32>,
+    pub radius: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -31,6 +45,15 @@ pub struct AllXVals {
     pub x_guess: Vec<f32>
 
 }
+
+
+#[derive(Debug, Clone)]
+pub struct AllXValsCircle {
+    pub radius: f32,
+    pub x_guess: Vec<f32>
+
+}
+
 #[derive(Debug, Clone)]
 pub struct TestfunctionEval{
     pub fitness_eval: f32,
