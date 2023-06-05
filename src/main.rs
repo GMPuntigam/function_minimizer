@@ -258,7 +258,7 @@ fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f32>) -> f32, filepath: Strin
             all_xvals.x_guess = vector_start.clone();
         }
         if !skiprest{
-        let vector_start_resize = vector_start.iter().enumerate().map(|(i,x)| x -((STEPS -step) as f32/STEPS as f32)*10.5*( vector_end[i] - x)).collect::<Vec<f32>>();
+        let vector_start_resize = vector_start.iter().enumerate().map(|(i,x)| x -((STEPS -step) as f32/STEPS as f32)*1.0*( vector_end[i] - x)).collect::<Vec<f32>>();
         let vector_end_resize = vector_end.iter().enumerate().map(|(i,x)| x +0.0*( x - vector_start[i])).collect::<Vec<f32>>();
         let set_of_samples_line = util::generate_samplepoint_vector(&vector_start_resize, &vector_end_resize, SAMPLEPOINTS);
         f_vals = set_of_samples_line.coordinates.iter().enumerate().map(|(_, x)| f(x).clone()).collect::<Vec<_>>();
@@ -391,7 +391,7 @@ fn evaluate_on_testfunction(f: fn(&Vec<f32>) -> f32, y: f32, z:f32, evaluator_ci
                 delta_fitness = 0.0;
             }
             if !skiprest{
-                let vector_start_resize = vector_start.iter().enumerate().map(|(i,x)| x -((STEPS -step) as f32/STEPS as f32)*10.5*( vector_end[i] - x)).collect::<Vec<f32>>();
+                let vector_start_resize = vector_start.iter().enumerate().map(|(i,x)| x -((STEPS -step) as f32/STEPS as f32)*1.0*( vector_end[i] - x)).collect::<Vec<f32>>();
                 let vector_end_resize = vector_end.iter().enumerate().map(|(i,x)| x +0.0*( x - vector_start[i])).collect::<Vec<f32>>();
                 let set_of_samples_line = util::generate_samplepoint_vector(&vector_start_resize, &vector_end_resize, SAMPLEPOINTS);
                 f_vals = set_of_samples_line.coordinates.iter().enumerate().map(|(_, x)| f(x).clone() +g(x, y, z)).collect::<Vec<_>>();
