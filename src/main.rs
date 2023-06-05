@@ -161,7 +161,6 @@ fn time_evaluation(champion: &Vec<Genome>,f: fn(&Vec<f32>) -> f32, radius: f32, 
     let evaluations= 30;
     let mut f_vals: Vec<f32> = Vec::with_capacity(evaluations);
     let mut step_vec: Vec<usize>= Vec::with_capacity(evaluations);
-    let mut rng = rand::thread_rng();
     let mut x_vals: Vec<Vec<f32>>= Vec::with_capacity(evaluations);
     let mut durations: Vec<f32>= Vec::with_capacity(evaluations);
     for _ in 0..evaluations{
@@ -295,19 +294,23 @@ fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f32>) -> f32, filepath: Strin
     (f(&all_xvals.x_guess), all_xvals.x_guess, step)
 }
 
-fn evaluate_values_line(evaluator: &mut MatrixRecurrentEvaluator, input_values_normalized: Vec<f32>, vector_start: &Vec<f32>, vector_end: &Vec<f32>) ->Vec<f32> {
+fn evaluate_values_line(evaluator: &mut MatrixRecurrentEvaluator, input_values_normalized: Vec<f32>, vector_start: &Vec<f32>, vector_end: &Vec<f32>, all_xvals: &AllXValsCircle) ->(Vec<f32>, f32) {
     let prediction: Vec<f64> = evaluator.evaluate(input_values_normalized.clone().iter().map(|x | *x as f64).collect() );
     let pred_x_guess: f32 = prediction[0] as f32;
-    // let pred_radius: f32 = prediction[1] as f32;
+    let pred_radius: f32 = prediction[1] as f32;
+    let mut radius: f32;
     let mut x_guess: Vec<f32> = vec![0.0, 0.0];
+    radius = all_xvals.radius*(0.5+pred_radius);
     for dim in 0..2{
         x_guess[dim] = pred_x_guess*(vector_end[dim]-vector_start[dim])+vector_start[dim];
         if x_guess[dim].is_nan() {
             x_guess[dim] = vector_start[dim];    
         }
     }
-
-    x_guess
+    if radius.is_nan() {
+        radius = all_xvals.radius;
+    }
+    (x_guess, radius)
 }
 
 fn evaluate_values(evaluator: &mut MatrixRecurrentEvaluator, input_values_normalized: Vec<f32>, all_xvals: &AllXValsCircle, function_domain: & util::CircleGeneratorInput) ->(Vec<f32>, f32) {
@@ -336,7 +339,7 @@ fn network_step(input_values: Vec<f32>, evaluator: &mut MatrixRecurrentEvaluator
 }
 
 fn network_step_line(input_values: Vec<f32>, evaluator: &mut MatrixRecurrentEvaluator,  all_xvals: &mut AllXValsCircle, vector_start: &Vec<f32>, vector_end: &Vec<f32>) -> () {
-    (all_xvals.x_guess) = evaluate_values_line(evaluator, input_values, vector_start, vector_end);
+    (all_xvals.x_guess, all_xvals.radius) = evaluate_values_line(evaluator, input_values, vector_start, vector_end, all_xvals);
 }
 
 fn normalise_vector(vec: &Vec<f32>) -> Vec<f32> {
