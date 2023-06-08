@@ -226,7 +226,7 @@ def show_progress (filepath, function, closeup =False, steps = False, logcontour
         plt.xlim(x1[-1]-5,x1[-1]+5)
     plt.show()
 
-dir = r"example_runs\2023-6-5"
+dir = r"example_runs\2023-6-8"
 
 function_handle_dict = {"powerfour.txt": function_handle,
                         "abs.txt": abs_function,
