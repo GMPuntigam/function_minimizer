@@ -18,10 +18,10 @@ use std::time::{Instant};
 // use crate::{data_structs::};
 
 const DIMENSIONS: usize = 2;
-const STEPS: usize = 20;
+const STEPS: usize = 30;
 const N_TRYS: usize = 3;
-const N_DRILL: usize = 3;
-const N_OVERDRILL: usize = 3;
+const N_DRILL: usize = 4;
+const N_OVERDRILL: usize = 0;
 const N_TESTFUNCTIONS: usize =6;
 const SAMPLEPOINTS: usize = 6;
 const POPULATION_SIZE: usize = 1000;
