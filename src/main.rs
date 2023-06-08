@@ -12,21 +12,23 @@ use libm::tanhf;
 use std::{fs::{OpenOptions}, f32::consts::PI};
 use std::io::prelude::*;
 use std::{cmp::Ordering, fs};
-use rayon::{prelude::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator}};
+use rayon::{prelude::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator, IntoParallelIterator}};
 use set_genome::{Genome, Parameters, Structure, Mutations, activations::Activation};
 use std::time::{Instant};
+
+use crate::util::Evaluation;
 // use crate::{data_structs::};
 
 const DIMENSIONS: usize = 2;
-const STEPS: usize = 40;
+const STEPS: usize = 30;
 const N_TRYS: usize = 3;
-const N_DRILL: usize = 2;
+const N_DRILL: usize = 5;
 const N_OVERDRILL: usize = 0;
 const N_TESTFUNCTIONS: usize =6;
-const SAMPLEPOINTS: usize = 6;
-const POPULATION_SIZE: usize = 1000;
-const GENERATIONS: usize = 10;
-const TRAINFROMRESULTS: bool=false;
+const SAMPLEPOINTS: usize = 8;
+const POPULATION_SIZE: usize = 100;
+const GENERATIONS: usize = 0;
+const TRAINFROMRESULTS: bool=true;
 const FUNCTION_HANDLE_UNTRAINED1D: fn(&Vec<f32>) -> f32 = |x|  x[0].abs() + 1.9* x[0].sin();
 const FUNCTION_HANDLE_UNTRAINED: fn(&Vec<f32>) -> f32 = |x|  (x[0]-3.14).powi(2) + (x[1]-2.72).powi(2)+ (3.0*x[0] +1.41).sin() + (4.0*x[1] -1.73).sin();
 const FUNCTION_HANDLE_HIMMELBLAU: fn(&Vec<f32>) -> f32 = |x|  ((x[0]).powi(2) + x[1] - 11.0).powi(2)+ ((x[0]) + x[1].powi(2) - 7.0).powi(2);
@@ -193,33 +195,41 @@ fn main() {
 }
 
 fn time_evaluation(champion: &Vec<Genome>,f: fn(&Vec<f32>) -> f32, radius: f32, center: &Vec<f32>){
-    let evaluations= 1000;
-    let mut f_vals: Vec<f32> = Vec::with_capacity(evaluations);
-    let mut step_vec: Vec<usize>= Vec::with_capacity(evaluations);
-    let mut x_vals: Vec<Vec<f32>>= Vec::with_capacity(evaluations);
-    let mut durations: Vec<f32>= Vec::with_capacity(evaluations);
-    let mut cumulative_duration: f32 = 0.0;
+    let evaluations= 150;
+    let mut f_vals: Vec<f32>;
+    let step_vec: Vec<usize>;
+    let x_vals: Vec<Vec<f32>>;
+    let durations: Vec<f32>;
+    let cumulative_duration: f32 = 0.0;
     let mut f_best_approx: f32 = f32::INFINITY;
     let mut approx_to_best: Vec<Vec<f32>> =  Vec::with_capacity(evaluations);
-    for _ in 0..evaluations{
-        let start = Instant::now();
-        let f_val: f32;
-        let x_min: Vec<f32>;
-        let steps: usize;
-        (f_val, x_min, steps)= evaluate_champion(&champion, f, "".to_string(), true,  radius, center );
+    let eval_results: Vec<Evaluation>;
+    let start = Instant::now();
+    let par_iter = (0..evaluations).into_par_iter().map(|_| evaluate_champion(&champion, f, "".to_string(), true,  radius, center ));
+    eval_results = par_iter.collect::<Vec<Evaluation>>();
+    let total_time = start.elapsed().as_secs_f32();
+    // dbg!(&eval_results);
+    
+    f_vals = eval_results.iter().map(|a| a.fval.clone()).collect();
+    // dbg!(&f_vals);
+    x_vals = eval_results.iter().map(|a| a.x_min.clone()).collect();
+    step_vec = eval_results.iter().map(|a| a.steps).collect();
+    // step_vec = eval_results.iter().map(|a| a.steps).collect();
+    durations = eval_results.iter().map(|a| a.duration).collect();
+    // let total_time = durations.iter().sum::<f32>();
+    for i in 0..evaluations{
+        // let start = Instant::now();
+        // let f_val: f32;
+        // let x_min: Vec<f32>;
+        // let steps: usize;
+        // (f_val, x_min, steps)= evaluate_champion(&champion, f, "".to_string(), true,  radius, center );
         // dbg!(&f_val);
-        let duration = start.elapsed().as_secs_f32();
-        f_vals.push(f_val);
-        x_vals.push(x_min.clone());
-        step_vec.push(steps);
-        durations.push(duration);
-        cumulative_duration = cumulative_duration + duration;
-        if f_val < f_best_approx {
-            f_best_approx = f_val;
+        // let duration = start.elapsed().as_secs_f32();
+        
+        if f_vals[i] < f_best_approx {
+            f_best_approx = f_vals[i];
             approx_to_best.push(vec![cumulative_duration,f_best_approx])
         }
-        
-
     }
     let f_max = f_vals.iter().copied().fold(f32::NAN, f32::max);
     let f_min = f_vals.iter().copied().fold(f32::NAN, f32::min);
@@ -239,7 +249,7 @@ fn time_evaluation(champion: &Vec<Genome>,f: fn(&Vec<f32>) -> f32, radius: f32, 
     let median = median(&mut f_vals);
     println!("Ran 500 iterations to find the minimum");
     dbg!(approx_to_best);
-    println!("Champion took on average {:?} to find the minimum, worst time {}", average_time, max_time);
+    println!("Total CPU time to find the minimum {}", total_time);
     colour::green_ln!("Minimum has value {} ", f_min);
     colour::yellow_ln!("Median of Minimum {} ", median);
     colour::red_ln!("Wort minimum approximation {} ", f_max);
@@ -260,8 +270,8 @@ fn median(numbers: &mut [f32]) -> f32 {
 }
 
 
-fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f32>) -> f32, filepath: String, timeonly: bool, radius: f32, center: &Vec<f32>) -> (f32, Vec<f32>, usize) {
-    
+fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f32>) -> f32, filepath: String, timeonly: bool, radius: f32, center: &Vec<f32>) -> (Evaluation) {
+    let start = Instant::now();
     if !timeonly {
         let contents = String::from(format!(";Step;XVal;radius\n"));
         let mut sampleheader = util::generate_sampleheader(SAMPLEPOINTS,DIMENSIONS);
@@ -297,12 +307,13 @@ fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f32>) -> f32, filepath: Strin
     for n_drill in 0..N_DRILL+N_OVERDRILL {
         step = 0;
         fitness_change_limited = 0.0;
+        function_domain.radius = function_domain.radius+0.005;
         while (step < STEPS) & (delta_fitness.abs() > 1e-10_f32) {
             // if  step%3 == 0{
                 set_of_sample_points = util::generate_samplepoint_2d_random_slice(&function_domain);
                 f_vals = set_of_sample_points.coordinates.iter().enumerate().map(|(_, x)| f(x)).collect::<Vec<_>>();
                 f_vals_normalized = normalise_vector(&f_vals);
-                let input_values: Vec<f32> = [set_of_sample_points.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![(n_drill as f32), (STEPS -step) as f32/STEPS as f32, 1.0, fitness_change_limited]].concat();
+                let input_values: Vec<f32> = [set_of_sample_points.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![(n_drill as f32)/(N_DRILL+N_OVERDRILL) as f32, (STEPS -step) as f32/STEPS as f32, 1.0, fitness_change_limited]].concat();
                 network_step(input_values, &mut evaluator_circle, &mut all_xvals, &function_domain, step);
                 vector_start  = all_xvals.x_guess.clone();
                 vector_end = function_domain.center.clone();
@@ -321,7 +332,7 @@ fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f32>) -> f32, filepath: Strin
             set_of_samples_line = util::generate_samplepoint_vector(&vector_start_resize, &vector_end_resize, SAMPLEPOINTS);
             f_vals = set_of_samples_line.coordinates.iter().enumerate().map(|(_, x)| f(x).clone()).collect::<Vec<_>>();
             f_vals_normalized = normalise_vector(&f_vals);
-            let input_values: Vec<f32> = [set_of_samples_line.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![n_drill as f32, (STEPS -step) as f32/STEPS as f32, 1.0, fitness_change_limited]].concat();
+            let input_values: Vec<f32> = [set_of_samples_line.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![n_drill as f32/(N_DRILL+N_OVERDRILL) as f32, (STEPS -step) as f32/STEPS as f32, 1.0, fitness_change_limited]].concat();
             network_step_line(input_values, &mut evaluator_line, &mut all_xvals, &vector_start_resize, &vector_end_resize);
             function_domain.center = all_xvals.x_guess.clone();
             function_domain.radius = all_xvals.radius.clone();
@@ -351,7 +362,9 @@ fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f32>) -> f32, filepath: Strin
             step+=1;
         }
     }
-    (f(&all_xvals.x_guess), all_xvals.x_guess, step)
+    let duration = start.elapsed().as_secs_f32();
+    let eval =  Evaluation { fval: f(&all_xvals.x_guess), x_min: all_xvals.x_guess, steps: step, duration: duration };
+    eval
 }
 
 fn evaluate_values_line(evaluator: &mut MatrixRecurrentEvaluator, input_values_normalized: Vec<f32>, vector_start: &Vec<f32>, vector_end: &Vec<f32>, all_xvals: &AllXValsCircle) ->(Vec<f32>, f32) {
@@ -460,13 +473,13 @@ fn evaluate_on_testfunction(f: fn(&Vec<f32>) -> f32, y: f32, z:f32, evaluator_ci
             step = 0;
             let mut fitness_change_limited = 0.0;
             let mut skiprest: bool = false;
-            
+            function_domain.radius = function_domain.radius+0.005;
             while (step < STEPS) & (delta_fitness.abs() > 1e-10_f32) {
                 // if step%3 == 0{   
                     let set_of_sample_points = util::generate_samplepoint_2d_random_slice(&function_domain);
                     f_vals = set_of_sample_points.coordinates.iter().enumerate().map(|(_, x)| f(x).clone() +g(x, y, z)).collect::<Vec<_>>();
                     f_vals_normalized = normalise_vector(&f_vals);
-                    let input_values: Vec<f32> = [set_of_sample_points.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![n_drill as f32, (STEPS -step) as f32/STEPS as f32, 1.0,fitness_change_limited]].concat();
+                    let input_values: Vec<f32> = [set_of_sample_points.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![n_drill as f32/N_DRILL as f32, (STEPS -step) as f32/STEPS as f32, 1.0,fitness_change_limited]].concat();
                     network_step(input_values, evaluator_circle, &mut all_xvals, &function_domain, step);
                     if all_xvals.x_guess.iter().any(|i| i.is_nan()) || all_xvals.radius.is_nan() || f_vals.iter().any(|i| i.is_nan()) {
                         return f32::INFINITY;
@@ -491,7 +504,7 @@ fn evaluate_on_testfunction(f: fn(&Vec<f32>) -> f32, y: f32, z:f32, evaluator_ci
                     //     dbg!(&vector_end_resize);
                     //     dbg!(&vector_start_resize);
                     // }
-                    let input_values: Vec<f32> = [set_of_samples_line.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![n_drill as f32, (STEPS -step) as f32/STEPS as f32, 1.0,fitness_change_limited]].concat();
+                    let input_values: Vec<f32> = [set_of_samples_line.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![n_drill as f32/N_DRILL as f32, (STEPS -step) as f32/STEPS as f32, 1.0,fitness_change_limited]].concat();
                     network_step_line(input_values, evaluator_line, &mut all_xvals, &vector_start_resize, &vector_end_resize);
                     function_domain.center = all_xvals.x_guess.clone();
                     function_domain.radius = all_xvals.radius.clone();
@@ -511,8 +524,8 @@ fn evaluate_on_testfunction(f: fn(&Vec<f32>) -> f32, y: f32, z:f32, evaluator_ci
         fitness_vec.push(fitness_eval.clone());
         scores_vec.push(fitness);
     }
-    scores_vec.iter().sum::<f32>()/(N_TRYS as f32)
-    // scores_vec.iter().copied().fold(f32::NAN, f32::min)
+    // scores_vec.iter().sum::<f32>()/(N_TRYS as f32)
+    scores_vec.iter().copied().fold(f32::NAN, f32::min)
     
 }
 

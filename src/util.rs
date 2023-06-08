@@ -11,6 +11,15 @@ pub struct FunctionDomain {
 }
 
 #[derive(Debug)]
+pub struct Evaluation {
+    pub fval: f32,
+    pub x_min: Vec<f32>,
+    pub steps: usize,
+    pub duration: f32,
+    
+}
+
+#[derive(Debug)]
 pub struct CircleGeneratorInput {
     pub dimensions: usize,
     pub samplepoints: usize,
