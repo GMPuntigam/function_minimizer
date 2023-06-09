@@ -16,6 +16,7 @@ pub struct Evaluation {
     pub x_min: Vec<f32>,
     pub steps: usize,
     pub duration: f32,
+    pub radius: f32
     
 }
 
