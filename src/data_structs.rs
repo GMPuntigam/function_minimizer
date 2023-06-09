@@ -26,7 +26,7 @@ pub struct FitnessEval{
 pub struct FitnessEvalCircle{
     pub fitness: f32,
     pub x_guess: Vec<f32>,
-    pub radius: f32,
+    pub radius: f32
 }
 
 #[derive(Debug, Clone)]
@@ -50,7 +50,12 @@ pub struct AllXVals {
 #[derive(Debug, Clone)]
 pub struct AllXValsCircle {
     pub radius: f32,
-    pub x_guess: Vec<f32>
+    pub x_guess: Vec<f32>,
+    pub f_val: f32,
+    pub delta_fitness: f32,
+    pub fitness_change_limited: f32,
+    pub last_fitness: f32,
+    pub currentbest: bool
 
 }
 

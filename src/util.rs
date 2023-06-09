@@ -19,7 +19,7 @@ pub struct Evaluation {
     
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CircleGeneratorInput {
     pub dimensions: usize,
     pub samplepoints: usize,

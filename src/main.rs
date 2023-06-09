@@ -20,12 +20,13 @@ use crate::util::Evaluation;
 // use crate::{data_structs::};
 
 const DIMENSIONS: usize = 2;
-const STEPS: usize = 30;
+const STEPS: usize = 40;
 const N_TRYS: usize = 3;
-const N_DRILL: usize = 5;
-const N_OVERDRILL: usize = 0;
+const N_DRILL: usize = 1;
+const N_PARTICLES: usize = 7;
+const N_OVERDRILL: usize = 1;
 const N_TESTFUNCTIONS: usize =6;
-const SAMPLEPOINTS: usize = 8;
+const SAMPLEPOINTS: usize = 6;
 const POPULATION_SIZE: usize = 100;
 const GENERATIONS: usize = 0;
 const TRAINFROMRESULTS: bool=true;
@@ -100,8 +101,8 @@ fn main() {
     let gen: Genome;
     let gen2: Genome;
     if TRAINFROMRESULTS{
-        let champion_bytes = &fs::read_to_string(format!("example_runs/2023-6-8/winner-circle.json")).expect("Unable to read champion");
-        let champion_bytes2 = &fs::read_to_string(format!("example_runs/2023-6-8/winner-line.json")).expect("Unable to read champion");
+        let champion_bytes = &fs::read_to_string(format!("example_runs/2023-6-9/winner-circle.json")).expect("Unable to read champion");
+        let champion_bytes2 = &fs::read_to_string(format!("example_runs/2023-6-9/winner-line.json")).expect("Unable to read champion");
         gen = serde_json::from_str(champion_bytes).unwrap();
         gen2 = serde_json::from_str(champion_bytes2).unwrap();
     }else {
@@ -195,11 +196,11 @@ fn main() {
 }
 
 fn time_evaluation(champion: &Vec<Genome>,f: fn(&Vec<f32>) -> f32, radius: f32, center: &Vec<f32>){
-    let evaluations= 150;
+    let evaluations= 50;
     let mut f_vals: Vec<f32>;
     let step_vec: Vec<usize>;
     let x_vals: Vec<Vec<f32>>;
-    let durations: Vec<f32>;
+    // let durations: Vec<f32>;
     let cumulative_duration: f32 = 0.0;
     let mut f_best_approx: f32 = f32::INFINITY;
     let mut approx_to_best: Vec<Vec<f32>> =  Vec::with_capacity(evaluations);
@@ -215,7 +216,7 @@ fn time_evaluation(champion: &Vec<Genome>,f: fn(&Vec<f32>) -> f32, radius: f32, 
     x_vals = eval_results.iter().map(|a| a.x_min.clone()).collect();
     step_vec = eval_results.iter().map(|a| a.steps).collect();
     // step_vec = eval_results.iter().map(|a| a.steps).collect();
-    durations = eval_results.iter().map(|a| a.duration).collect();
+    // durations = eval_results.iter().map(|a| a.duration).collect();
     // let total_time = durations.iter().sum::<f32>();
     for i in 0..evaluations{
         // let start = Instant::now();
@@ -233,8 +234,8 @@ fn time_evaluation(champion: &Vec<Genome>,f: fn(&Vec<f32>) -> f32, radius: f32, 
     }
     let f_max = f_vals.iter().copied().fold(f32::NAN, f32::max);
     let f_min = f_vals.iter().copied().fold(f32::NAN, f32::min);
-    let average_time = durations.iter().sum::<f32>()/(evaluations as f32);
-    let max_time = durations.iter().copied().fold(f32::NAN, f32::max);
+    // let average_time = durations.iter().sum::<f32>()/(evaluations as f32);
+    // let max_time = durations.iter().copied().fold(f32::NAN, f32::max);
     let mut x_min: Vec<f32> = Vec::with_capacity(DIMENSIONS);
     let mut x_min_worst: Vec<f32> = Vec::with_capacity(DIMENSIONS);
     for (i, f_val) in f_vals.iter().enumerate(){
@@ -270,26 +271,31 @@ fn median(numbers: &mut [f32]) -> f32 {
 }
 
 
-fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f32>) -> f32, filepath: String, timeonly: bool, radius: f32, center: &Vec<f32>) -> (Evaluation) {
+fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f32>) -> f32, filepath: String, timeonly: bool, radius: f32, center: &Vec<f32>) -> Evaluation {
     let start = Instant::now();
     if !timeonly {
         let contents = String::from(format!(";Step;XVal;radius\n"));
-        let mut sampleheader = util::generate_sampleheader(SAMPLEPOINTS,DIMENSIONS);
+        let mut sampleheader = util::generate_sampleheader(N_PARTICLES,DIMENSIONS);
         sampleheader.push_str(&contents);
         fs::write(filepath.clone(), sampleheader).expect("Unable to write file");
 
     }
 
-    let mut function_domain = util::CircleGeneratorInput{
+    let mut particle_pos = vec![util::CircleGeneratorInput{
         dimensions:DIMENSIONS,
         samplepoints: SAMPLEPOINTS,
         radius: radius,
         center: center.to_vec()
-    };
-    let mut all_xvals = AllXValsCircle{
+    }; N_PARTICLES];
+    let mut all_xvals = vec![AllXValsCircle{
         x_guess : center.to_vec(),
-        radius: radius
-    };
+        radius: radius,
+        f_val: f32::INFINITY,
+        delta_fitness: f32::INFINITY,
+        fitness_change_limited : 0.0,
+        last_fitness: f32::INFINITY,
+        currentbest: false
+    }; N_PARTICLES];
     // let mut set_of_sample_points = util::generate_1d_samplepoints(&function_domain, 0);
     let mut set_of_samples_line =  util::generate_samplepoint_vector(&vec![0.0,0.0], &vec![1.0,1.0], SAMPLEPOINTS);
     let mut set_of_sample_points: util::SetOfSamplesCircle;
@@ -299,62 +305,100 @@ fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f32>) -> f32, filepath: Strin
     let mut evaluator_line = MatrixRecurrentFabricator::fabricate(&net[1]).expect("didnt work");
     let mut step = 0;
     let mut delta_fitness = f32::INFINITY;
-    let mut last_fitness = f32::INFINITY;
-    let mut skiprest: bool = false;
-    let mut fitness_change_limited: f32;
+    // let mut last_fitness = f32::INFINITY;
+    let mut skiprest: bool;
+    // let mut fitness_change_limited: f32;
     let mut vector_start: Vec<f32>;
     let mut vector_end: Vec<f32>;
+    let mut x_guess_best: Vec<f32> = vec![0.0; DIMENSIONS];
     for n_drill in 0..N_DRILL+N_OVERDRILL {
         step = 0;
-        fitness_change_limited = 0.0;
-        function_domain.radius = function_domain.radius+0.005;
+        skiprest = false;
+        for n_particle in 0..N_PARTICLES {
+            particle_pos[n_particle].radius = particle_pos[n_particle].radius+0.005;
+            all_xvals[n_particle].fitness_change_limited = 0.0;
+            
+        }
         while (step < STEPS) & (delta_fitness.abs() > 1e-10_f32) {
+            for n_particle in 0..N_PARTICLES {
             // if  step%3 == 0{
-                set_of_sample_points = util::generate_samplepoint_2d_random_slice(&function_domain);
+                set_of_sample_points = util::generate_samplepoint_2d_random_slice(&particle_pos[n_particle]);
                 f_vals = set_of_sample_points.coordinates.iter().enumerate().map(|(_, x)| f(x)).collect::<Vec<_>>();
                 f_vals_normalized = normalise_vector(&f_vals);
-                let input_values: Vec<f32> = [set_of_sample_points.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![(n_drill as f32)/(N_DRILL+N_OVERDRILL) as f32, (STEPS -step) as f32/STEPS as f32, 1.0, fitness_change_limited]].concat();
-                network_step(input_values, &mut evaluator_circle, &mut all_xvals, &function_domain, step);
-                vector_start  = all_xvals.x_guess.clone();
-                vector_end = function_domain.center.clone();
+                let input_values: Vec<f32> = [set_of_sample_points.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![(n_drill as f32)/(N_DRILL+N_OVERDRILL) as f32, (STEPS -step) as f32/STEPS as f32, 1.0, all_xvals[n_particle].fitness_change_limited]].concat();
+                network_step(input_values, &mut evaluator_circle, &mut all_xvals[n_particle], &particle_pos[n_particle], step);
+                vector_start  = all_xvals[n_particle].x_guess.clone();
+                vector_end = particle_pos[n_particle].center.clone();
                 if vector_start.iter().enumerate().all(|(i,x)| (vector_end[i]-x).abs() < 1e-8_f32) {
                     skiprest = true;
                     delta_fitness = 0.0;
-                    all_xvals.x_guess = vector_start.clone();
+                    all_xvals[n_particle].x_guess = vector_start.clone();
                 // }
+                }
+                // if skiprest {
+                //     dbg!(&n_drill, &step, &skiprest);
+                // }
+                if !skiprest{
+                    let vector_start_resize = vector_start.iter().enumerate().map(|(i,x)| x -((STEPS -step) as f32/STEPS as f32)*2.0*( vector_end[i] - x)).collect::<Vec<f32>>();
+                    let vector_end_resize = vector_end.iter().enumerate().map(|(i,x)| x +0.0*( x - vector_start[i])).collect::<Vec<f32>>();
+                    set_of_samples_line = util::generate_samplepoint_vector(&vector_start_resize, &vector_end_resize, SAMPLEPOINTS);
+                    f_vals = set_of_samples_line.coordinates.iter().enumerate().map(|(_, x)| f(x).clone()).collect::<Vec<_>>();
+                    f_vals_normalized = normalise_vector(&f_vals);
+                    let input_values: Vec<f32> = [set_of_samples_line.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![n_drill as f32/(N_DRILL+N_OVERDRILL) as f32, (STEPS -step) as f32/STEPS as f32, 1.0, all_xvals[n_particle].fitness_change_limited]].concat();
+                    network_step_line(input_values, &mut evaluator_line, &mut all_xvals[n_particle], &vector_start_resize, &vector_end_resize);
+                    particle_pos[n_particle].center = all_xvals[n_particle].x_guess.clone();
+                    particle_pos[n_particle].radius = all_xvals[n_particle].radius.clone();
+                    all_xvals[n_particle].f_val= f(&all_xvals[n_particle].x_guess);
+                    all_xvals[n_particle].delta_fitness = all_xvals[n_particle].last_fitness - all_xvals[n_particle].f_val;
+                    all_xvals[n_particle].fitness_change_limited = tanhf(all_xvals[n_particle].delta_fitness);
+                    all_xvals[n_particle].last_fitness = all_xvals[n_particle].f_val;
+                }
             }
-            // if skiprest {
-            //     dbg!(&n_drill, &step, &skiprest);
-            // }
-            if !skiprest{
-            let vector_start_resize = vector_start.iter().enumerate().map(|(i,x)| x -((STEPS -step) as f32/STEPS as f32)*2.0*( vector_end[i] - x)).collect::<Vec<f32>>();
-            let vector_end_resize = vector_end.iter().enumerate().map(|(i,x)| x +0.0*( x - vector_start[i])).collect::<Vec<f32>>();
-            set_of_samples_line = util::generate_samplepoint_vector(&vector_start_resize, &vector_end_resize, SAMPLEPOINTS);
-            f_vals = set_of_samples_line.coordinates.iter().enumerate().map(|(_, x)| f(x).clone()).collect::<Vec<_>>();
-            f_vals_normalized = normalise_vector(&f_vals);
-            let input_values: Vec<f32> = [set_of_samples_line.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![n_drill as f32/(N_DRILL+N_OVERDRILL) as f32, (STEPS -step) as f32/STEPS as f32, 1.0, fitness_change_limited]].concat();
-            network_step_line(input_values, &mut evaluator_line, &mut all_xvals, &vector_start_resize, &vector_end_resize);
-            function_domain.center = all_xvals.x_guess.clone();
-            function_domain.radius = all_xvals.radius.clone();
-            delta_fitness = last_fitness - f(&all_xvals.x_guess);
-            fitness_change_limited = tanhf(delta_fitness);
-            last_fitness = f(&all_xvals.x_guess);
+            let fitness_min = all_xvals.iter().map(|x| x.f_val).collect::<Vec<f32>>().iter().copied().fold(f32::NAN, f32::min);
+            
+            for n_particle in 0..N_PARTICLES {
+                if all_xvals[n_particle].f_val == fitness_min{
+                    all_xvals[n_particle].currentbest = true;
+                    x_guess_best = all_xvals[n_particle].x_guess.clone();
+                } else {
+                    all_xvals[n_particle].currentbest = false;
+                }
             }
+            if step > STEPS/2 {
+                for n_particle in 0..N_PARTICLES {
+                    if (all_xvals[n_particle].currentbest == false) & (all_xvals[n_particle].fitness_change_limited > -0.5){
+                        vector_start = all_xvals[n_particle].x_guess.clone();
+                        vector_end  = x_guess_best.clone();
+                        let set_of_samples_line = util::generate_samplepoint_vector(&vector_start, &vector_end, SAMPLEPOINTS);
+                        f_vals = set_of_samples_line.coordinates.iter().enumerate().map(|(_, x)| f(x).clone()).collect::<Vec<_>>();
+                        f_vals_normalized = normalise_vector(&f_vals);
+                        let input_values: Vec<f32> = [set_of_samples_line.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![n_drill as f32/N_DRILL as f32, (STEPS -step) as f32/STEPS as f32, 1.0,all_xvals[n_particle].fitness_change_limited]].concat();
+                        network_step_line(input_values, &mut evaluator_line, &mut all_xvals[n_particle], &vector_start, &vector_end);
+                    } 
+                }
+            }
+            
             if !timeonly {
-                let prediction =PredictionCircle {
-                    fitness: f(&all_xvals.x_guess),
-                    x_guess: all_xvals.x_guess.clone(),
-                    radius: all_xvals.radius.clone()};
+                let mut radius_guess: f32 = 0.0;
+                for n_particle in 0..N_PARTICLES {
+                    if all_xvals[n_particle].f_val == fitness_min{
+                        radius_guess = particle_pos[n_particle].radius;
+                    } 
+                }
+                // let prediction =PredictionCircle {
+                //     fitness: fitness_min,
+                //     x_guess: x_guess_best.clone(),
+                //     radius: radius_guess};
                 let mut file_write = OpenOptions::new()
                 .write(true)
                 .append(true)
                 .open(filepath.clone())
                 .unwrap();
                 // print!("champion_global Step {}: {:?}\n",step, prediction); 
-                let coordinates_string: String = set_of_samples_line.coordinates.iter().map(|x|  x.iter().map( |&id| id.to_string()).collect::<Vec<String>>().join(",")).collect::<Vec<String>>().join(";");
-                let f_vals_string: String = f_vals.iter().map( |&id| id.to_string()).collect::<Vec<String>>().join(";");
-                let x_guess_string: String = all_xvals.x_guess.clone().into_iter().map(|i| i.to_string()).collect::<Vec<String>>().join(",");
-                let radius_string: String = all_xvals.radius.to_string();
+                let coordinates_string: String = all_xvals.iter().map(|x|  x.x_guess.iter().map( |&id| id.to_string()).collect::<Vec<String>>().join(",")).collect::<Vec<String>>().join(";");
+                let f_vals_string: String = all_xvals.iter().map( |i| i.f_val.to_string()).collect::<Vec<String>>().join(";");
+                let x_guess_string: String = x_guess_best.clone().into_iter().map(|i| i.to_string()).collect::<Vec<String>>().join(",");
+                let radius_string: String = radius_guess.to_string();
                 if let Err(e) = writeln!(file_write, "{coords};{fvals};{step};{x_val1};{radius}",coords =coordinates_string,fvals=f_vals_string, step=step, x_val1 =x_guess_string , radius = radius_string) {
                     eprintln!("Couldn't write to file: {}", e);
                 }
@@ -363,7 +407,7 @@ fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f32>) -> f32, filepath: Strin
         }
     }
     let duration = start.elapsed().as_secs_f32();
-    let eval =  Evaluation { fval: f(&all_xvals.x_guess), x_min: all_xvals.x_guess, steps: step, duration: duration };
+    let eval =  Evaluation { fval: f(&x_guess_best), x_min: x_guess_best, steps: step, duration: duration };
     eval
 }
 
@@ -453,79 +497,122 @@ fn evaluate_on_testfunction(f: fn(&Vec<f32>) -> f32, y: f32, z:f32, evaluator_ci
     for _try_enum in 0..N_TRYS {
         let mut f_vals: Vec<f32>;
         let mut f_vals_normalized: Vec<f32>;
-        let mut step = 0;
+        let mut step: usize;
         let mut delta_fitness = f32::INFINITY;
-        let mut last_fitness = f32::INFINITY;
         
-        let mut function_domain = util::CircleGeneratorInput{
+        let mut particle_pos = vec![util::CircleGeneratorInput{
             dimensions:DIMENSIONS,
             samplepoints: SAMPLEPOINTS,
             radius: radius,
             center: center.to_vec()
-        };
-        let mut all_xvals = AllXValsCircle{
+        }; N_PARTICLES];
+        let mut all_xvals = vec![AllXValsCircle{
             x_guess : center.to_vec(),
-            radius: radius
-        };
+            radius: radius,
+            f_val: f32::INFINITY,
+            delta_fitness: f32::INFINITY,
+            fitness_change_limited : 0.0,
+            last_fitness: f32::INFINITY,
+            currentbest: false
+        }; N_PARTICLES];
         let mut vector_start: Vec<f32>;
         let mut vector_end: Vec<f32>;
         for n_drill in 0..N_DRILL {
             step = 0;
-            let mut fitness_change_limited = 0.0;
             let mut skiprest: bool = false;
-            function_domain.radius = function_domain.radius+0.005;
+            for n_particle in 0..N_PARTICLES {
+                particle_pos[n_particle].radius = particle_pos[n_particle].radius+0.005;
+                all_xvals[n_particle].fitness_change_limited = 0.0;
+                
+            }
+                
             while (step < STEPS) & (delta_fitness.abs() > 1e-10_f32) {
+                for n_particle in 0..N_PARTICLES {
                 // if step%3 == 0{   
-                    let set_of_sample_points = util::generate_samplepoint_2d_random_slice(&function_domain);
+                    let set_of_sample_points = util::generate_samplepoint_2d_random_slice(&particle_pos[n_particle]);
                     f_vals = set_of_sample_points.coordinates.iter().enumerate().map(|(_, x)| f(x).clone() +g(x, y, z)).collect::<Vec<_>>();
                     f_vals_normalized = normalise_vector(&f_vals);
-                    let input_values: Vec<f32> = [set_of_sample_points.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![n_drill as f32/N_DRILL as f32, (STEPS -step) as f32/STEPS as f32, 1.0,fitness_change_limited]].concat();
-                    network_step(input_values, evaluator_circle, &mut all_xvals, &function_domain, step);
-                    if all_xvals.x_guess.iter().any(|i| i.is_nan()) || all_xvals.radius.is_nan() || f_vals.iter().any(|i| i.is_nan()) {
+                    let input_values: Vec<f32> = [set_of_sample_points.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![n_drill as f32/N_DRILL as f32, (STEPS -step) as f32/STEPS as f32, 1.0,all_xvals[n_particle].fitness_change_limited]].concat();
+                    network_step(input_values, evaluator_circle, &mut all_xvals[n_particle], &particle_pos[n_particle], step);
+                    if all_xvals[n_particle].x_guess.iter().any(|i| i.is_nan()) || all_xvals[n_particle].radius.is_nan() || f_vals.iter().any(|i| i.is_nan()) {
                         return f32::INFINITY;
                     }
-                    vector_start = all_xvals.x_guess.clone();
-                    vector_end  = function_domain.center.clone();
+                    vector_start = all_xvals[n_particle].x_guess.clone();
+                    vector_end  = particle_pos[n_particle].center.clone();
                     if vector_start.iter().enumerate().all(|(i,x)| (vector_end[i]-x).abs() < 1e-8_f32) {
                         skiprest = true;
                         delta_fitness = 0.0;
                     }
-                // }
-                if !skiprest{
-                    let vector_start_resize = vector_start.iter().enumerate().map(|(i,x)| x -((STEPS -step) as f32/STEPS as f32)*2.0*( vector_end[i] - x)).collect::<Vec<f32>>();
-                    let vector_end_resize = vector_end.iter().enumerate().map(|(i,x)| x +0.0*( x - vector_start[i])).collect::<Vec<f32>>();
-                    let set_of_samples_line = util::generate_samplepoint_vector(&vector_start_resize, &vector_end_resize, SAMPLEPOINTS);
-                    f_vals = set_of_samples_line.coordinates.iter().enumerate().map(|(_, x)| f(x).clone() +g(x, y, z)).collect::<Vec<_>>();
-                    f_vals_normalized = normalise_vector(&f_vals);
-                    // if f_vals_normalized.iter().any(|i| i.is_nan()){
-                    //     dbg!(&f_vals_normalized);
-                    //     dbg!(&f_vals);
-                    //     dbg!(&set_of_samples_line);
-                    //     dbg!(&vector_end_resize);
-                    //     dbg!(&vector_start_resize);
                     // }
-                    let input_values: Vec<f32> = [set_of_samples_line.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![n_drill as f32/N_DRILL as f32, (STEPS -step) as f32/STEPS as f32, 1.0,fitness_change_limited]].concat();
-                    network_step_line(input_values, evaluator_line, &mut all_xvals, &vector_start_resize, &vector_end_resize);
-                    function_domain.center = all_xvals.x_guess.clone();
-                    function_domain.radius = all_xvals.radius.clone();
-                    delta_fitness = last_fitness - (f(&all_xvals.x_guess) + g(&all_xvals.x_guess, y, z));
-                    fitness_change_limited = tanhf(delta_fitness);
-                    last_fitness = f(&all_xvals.x_guess) + g(&all_xvals.x_guess, y, z);
+                    if !skiprest{
+                        let vector_start_resize = vector_start.iter().enumerate().map(|(i,x)| x -((STEPS -step) as f32/STEPS as f32)*2.0*( vector_end[i] - x)).collect::<Vec<f32>>();
+                        let vector_end_resize = vector_end.iter().enumerate().map(|(i,x)| x +0.0*( x - vector_start[i])).collect::<Vec<f32>>();
+                        let set_of_samples_line = util::generate_samplepoint_vector(&vector_start_resize, &vector_end_resize, SAMPLEPOINTS);
+                        f_vals = set_of_samples_line.coordinates.iter().enumerate().map(|(_, x)| f(x).clone() +g(x, y, z)).collect::<Vec<_>>();
+                        f_vals_normalized = normalise_vector(&f_vals);
+                        // if f_vals_normalized.iter().any(|i| i.is_nan()){
+                        //     dbg!(&f_vals_normalized);
+                        //     dbg!(&f_vals);
+                        //     dbg!(&set_of_samples_line);
+                        //     dbg!(&vector_end_resize);
+                        //     dbg!(&vector_start_resize);
+                        // }
+                        let input_values: Vec<f32> = [set_of_samples_line.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![n_drill as f32/N_DRILL as f32, (STEPS -step) as f32/STEPS as f32, 1.0,all_xvals[n_particle].fitness_change_limited]].concat();
+                        network_step_line(input_values, evaluator_line, &mut all_xvals[n_particle], &vector_start_resize, &vector_end_resize);
+                        particle_pos[n_particle].center = all_xvals[n_particle].x_guess.clone();
+                        particle_pos[n_particle].radius = all_xvals[n_particle].radius.clone();
+                        all_xvals[n_particle].f_val= f(&all_xvals[n_particle].x_guess) + g(&all_xvals[n_particle].x_guess, y, z);
+                        all_xvals[n_particle].delta_fitness = all_xvals[n_particle].last_fitness - all_xvals[n_particle].f_val;
+                        all_xvals[n_particle].fitness_change_limited = tanhf(all_xvals[n_particle].delta_fitness);
+                        all_xvals[n_particle].last_fitness = all_xvals[n_particle].f_val;
+                    }
                 }
+                let fitness_min = all_xvals.iter().map(|x| x.f_val).collect::<Vec<f32>>().iter().copied().fold(f32::NAN, f32::min);
+                let mut x_guess_best: Vec<f32> = vec![0.0; DIMENSIONS];
+                for n_particle in 0..N_PARTICLES {
+                    if all_xvals[n_particle].f_val == fitness_min{
+                        all_xvals[n_particle].currentbest = true;
+                        x_guess_best = all_xvals[n_particle].x_guess.clone();
+                    } else {
+                        all_xvals[n_particle].currentbest = false;
+                    }
+                }
+                if step > STEPS/2 {
+                    for n_particle in 0..N_PARTICLES {
+                        if (all_xvals[n_particle].currentbest == false) & (all_xvals[n_particle].fitness_change_limited > -0.5){ 
+                            vector_start = all_xvals[n_particle].x_guess.clone();
+                            vector_end  = x_guess_best.clone();
+                            let set_of_samples_line = util::generate_samplepoint_vector(&vector_start, &vector_end, SAMPLEPOINTS);
+                            f_vals = set_of_samples_line.coordinates.iter().enumerate().map(|(_, x)| f(x).clone() +g(x, y, z)).collect::<Vec<_>>();
+                            f_vals_normalized = normalise_vector(&f_vals);
+                            let input_values: Vec<f32> = [set_of_samples_line.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![n_drill as f32/N_DRILL as f32, (STEPS -step) as f32/STEPS as f32, 1.0,all_xvals[n_particle].fitness_change_limited]].concat();
+                            network_step_line(input_values, evaluator_line, &mut all_xvals[n_particle], &vector_start, &vector_end);
+                        } 
+                    }
+                }
+
                 step+=1;
             } 
         }
-        let fitness = f(&all_xvals.x_guess) + g(&all_xvals.x_guess, y, z);
+        let mut x_guess: Vec<f32> = vec![0.0; DIMENSIONS];
+        let mut radius: f32 = 0.0;
+        let fitness_min = all_xvals.iter().map(|x| x.f_val).collect::<Vec<f32>>().iter().copied().fold(f32::NAN, f32::min);
+        for n_particle in 0..N_PARTICLES {
+            if all_xvals[n_particle].f_val == fitness_min{
+                x_guess = particle_pos[n_particle].center.clone();
+                radius = particle_pos[n_particle].radius;
+            } 
+        }
         let fitness_eval = FitnessEvalCircle{
-            fitness: fitness.clone(),
-            x_guess: all_xvals.x_guess.clone(),
-            radius: all_xvals.radius.clone()
+            fitness: fitness_min,
+            x_guess: x_guess,
+            radius: radius
         };
         fitness_vec.push(fitness_eval.clone());
-        scores_vec.push(fitness);
+        scores_vec.push(fitness_min);
     }
-    // scores_vec.iter().sum::<f32>()/(N_TRYS as f32)
-    scores_vec.iter().copied().fold(f32::NAN, f32::min)
+    scores_vec.iter().sum::<f32>()/(N_TRYS as f32)
+    // scores_vec.iter().copied().fold(f32::NAN, f32::min)
     
 }
 
