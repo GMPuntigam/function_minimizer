@@ -10,15 +10,7 @@ pub struct FunctionDomain {
     pub lower_limits: Vec<f32>
 }
 
-#[derive(Debug)]
-pub struct Evaluation {
-    pub fval: f32,
-    pub x_min: Vec<f32>,
-    pub steps: usize,
-    pub duration: f32,
-    pub radius: f32
-    
-}
+
 
 #[derive(Debug, Clone)]
 pub struct CircleGeneratorInput {
@@ -182,61 +174,61 @@ pub fn generate_samplepoint_2d_random_slice(circle_generator_input: &CircleGener
     }
 }
 
-pub fn generate_1d_samplepoints(function_domain: &FunctionDomain, currentdim: usize) -> SetOfSamples {
-    let between: Uniform<f32> = Uniform::from(0.0..1.0);
-    let mut mins: Vec<f32> = vec![0.0; function_domain.dimensions];
-    let mut maxs: Vec<f32> = vec![0.0; function_domain.dimensions];
-    let mut tensor= Vec::with_capacity(function_domain.samplepoints);
-    let mut tensor_normalised= Vec::with_capacity(function_domain.samplepoints);
-    // tensor_normalised.push(vec![0.0; function_domain.dimensions]);
-    let mut random_values:Vec<f32> = rand::thread_rng().sample_iter(&between).take(function_domain.samplepoints-2).collect();
-    random_values.sort_unstable_by(|a, b| a.partial_cmp(&b).unwrap());
-    let dim_values: Vec<f32> = [vec![0.0], random_values, vec![1.0]].concat();
-    // let mut rng = rand::thread_rng();
-    for sample_iter in 0..function_domain.samplepoints {
-        let mut point = Vec::with_capacity(function_domain.dimensions);
-        for dim in 0..function_domain.dimensions{
-            if dim == currentdim{
-                point.push(dim_values[sample_iter])
-            }else {
-                point.push(0.5);
-            }
-        }
-        tensor_normalised.push(point);
-    }
+// pub fn generate_1d_samplepoints(function_domain: &FunctionDomain, currentdim: usize) -> SetOfSamples {
+//     let between: Uniform<f32> = Uniform::from(0.0..1.0);
+//     let mut mins: Vec<f32> = vec![0.0; function_domain.dimensions];
+//     let mut maxs: Vec<f32> = vec![0.0; function_domain.dimensions];
+//     let mut tensor= Vec::with_capacity(function_domain.samplepoints);
+//     let mut tensor_normalised= Vec::with_capacity(function_domain.samplepoints);
+//     // tensor_normalised.push(vec![0.0; function_domain.dimensions]);
+//     let mut random_values:Vec<f32> = rand::thread_rng().sample_iter(&between).take(function_domain.samplepoints-2).collect();
+//     random_values.sort_unstable_by(|a, b| a.partial_cmp(&b).unwrap());
+//     let dim_values: Vec<f32> = [vec![0.0], random_values, vec![1.0]].concat();
+//     // let mut rng = rand::thread_rng();
+//     for sample_iter in 0..function_domain.samplepoints {
+//         let mut point = Vec::with_capacity(function_domain.dimensions);
+//         for dim in 0..function_domain.dimensions{
+//             if dim == currentdim{
+//                 point.push(dim_values[sample_iter])
+//             }else {
+//                 point.push(0.5);
+//             }
+//         }
+//         tensor_normalised.push(point);
+//     }
 
-    let mut coordinates_by_dimension: Vec<Vec<f32>> = vec![Vec::with_capacity(function_domain.samplepoints); function_domain.dimensions];
-    let mut coordinates_by_dimension_normalised: Vec<Vec<f32>> = vec![Vec::with_capacity(function_domain.samplepoints); function_domain.dimensions];
+//     let mut coordinates_by_dimension: Vec<Vec<f32>> = vec![Vec::with_capacity(function_domain.samplepoints); function_domain.dimensions];
+//     let mut coordinates_by_dimension_normalised: Vec<Vec<f32>> = vec![Vec::with_capacity(function_domain.samplepoints); function_domain.dimensions];
 
-    for i in 0..function_domain.samplepoints {
-        let mut point = tensor_normalised[i].clone();
-        for dim in 0..function_domain.dimensions{
-            coordinates_by_dimension_normalised[dim].push(point[dim].clone());
-            point[dim] = point[dim]*(function_domain.upper_limits[dim])+ (1.0-point[dim])*function_domain.lower_limits[dim];
-            coordinates_by_dimension[dim].push(point[dim].clone());
-            if i == 0 {
-                mins[dim] = point[dim].clone();
-                maxs[dim] = point[dim].clone();
-            } else {
-                mins[dim] = mins[dim].min(point[dim]);
-                maxs[dim] = maxs[dim].max(point[dim]);
-            }
-        }
+//     for i in 0..function_domain.samplepoints {
+//         let mut point = tensor_normalised[i].clone();
+//         for dim in 0..function_domain.dimensions{
+//             coordinates_by_dimension_normalised[dim].push(point[dim].clone());
+//             point[dim] = point[dim]*(function_domain.upper_limits[dim])+ (1.0-point[dim])*function_domain.lower_limits[dim];
+//             coordinates_by_dimension[dim].push(point[dim].clone());
+//             if i == 0 {
+//                 mins[dim] = point[dim].clone();
+//                 maxs[dim] = point[dim].clone();
+//             } else {
+//                 mins[dim] = mins[dim].min(point[dim]);
+//                 maxs[dim] = maxs[dim].max(point[dim]);
+//             }
+//         }
         
-        tensor.push(point);
-    }
+//         tensor.push(point);
+//     }
 
-    SetOfSamples {
-        dimensions: function_domain.dimensions,
-        n_samplepoints: function_domain.samplepoints,
-        max: maxs,
-        min: mins,
-        coordinates: tensor,
-        coordinates_normalised: tensor_normalised,
-        coordinates_by_dimension: coordinates_by_dimension,
-        coordinates_by_dimension_normalised: coordinates_by_dimension_normalised
-    }
-}
+//     SetOfSamples {
+//         dimensions: function_domain.dimensions,
+//         n_samplepoints: function_domain.samplepoints,
+//         max: maxs,
+//         min: mins,
+//         coordinates: tensor,
+//         coordinates_normalised: tensor_normalised,
+//         coordinates_by_dimension: coordinates_by_dimension,
+//         coordinates_by_dimension_normalised: coordinates_by_dimension_normalised
+//     }
+// }
 
 pub fn generate_sampleheader(samplepoints: usize, dimensions: usize)-> String {
     // let total_samplepoints= samplepoints.pow((dimensions).try_into().unwrap());

@@ -80,5 +80,20 @@ pub struct WallTimeEval{
     pub x_best: Vec<f32>,
     pub x_worst: Vec<f32>,
     pub walltime: f32,
-    pub average_steps: f32
+    pub average_steps: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct FProgress{
+    pub f_min: f32,
+    pub n_evals: usize
+}
+
+#[derive(Debug)]
+pub struct Evaluation {
+    pub fval: f32,
+    pub x_min: Vec<f32>,
+    pub steps: usize,
+    pub duration: f32,
+    pub radius: f32
 }
