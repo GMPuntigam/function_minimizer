@@ -213,7 +213,7 @@ def show_progress (filepath, function, closeup =False, steps = False, logcontour
         ax.quiver(pos_x1, pos_x2, u/norm, v/norm, angles="xy", zorder=5, pivot="mid", scale=100)
         lendf= len(df) -1
     ax.plot(x1[-1],x2[-1], marker="x", color="red")
-    df_last = df[df["Step"] == len(df)]
+    df_last = df[df["Step"] == (len(df)-1)]
     x_radius = df_last["radius"]
     circle = plt.Circle((x1[-1], x2[-1]), x_radius, color='r', fill=False)
     ax.add_patch(circle)
@@ -226,7 +226,7 @@ def show_progress (filepath, function, closeup =False, steps = False, logcontour
         plt.xlim(x1[-1]-5,x1[-1]+5)
     plt.show()
 
-dir = r"example_runs\2023-6-8"
+dir = r"example_runs\2023-6-11"
 
 function_handle_dict = {"powerfour.txt": function_handle,
                         "abs.txt": abs_function,

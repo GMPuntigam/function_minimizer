@@ -2,7 +2,7 @@ mod sub;
 mod data_structs;
 mod util;
 use chrono::{Utc, Datelike};
-use data_structs::{OverallFitness, TestfunctionEval, AllXValsCircle, FitnessEvalCircle, PredictionCircle};
+use data_structs::{OverallFitness, TestfunctionEval, AllXValsCircle, FitnessEvalCircle, PredictionCircle, WallTimeEval};
 use favannat::{MatrixRecurrentFabricator, StatefulFabricator, StatefulEvaluator, MatrixRecurrentEvaluator};
 use rand::{
     seq::SliceRandom,
@@ -24,7 +24,7 @@ const STEPS: usize = 30;
 const N_TRYS: usize = 3;
 const N_DRILL: usize = 1;
 const N_PARTICLES: usize = 8;
-const N_OVERDRILL: usize = 1;
+const N_OVERDRILL: usize = 0;
 const N_TESTFUNCTIONS: usize =6;
 const SAMPLEPOINTS: usize = 6;
 const POPULATION_SIZE: usize = 100;
@@ -101,8 +101,8 @@ fn main() {
     let gen: Genome;
     let gen2: Genome;
     if TRAINFROMRESULTS{
-        let champion_bytes = &fs::read_to_string(format!("example_runs/2023-6-9/winner-circle.json")).expect("Unable to read champion");
-        let champion_bytes2 = &fs::read_to_string(format!("example_runs/2023-6-9/winner-line.json")).expect("Unable to read champion");
+        let champion_bytes = &fs::read_to_string(format!("example_runs/2023-6-11/winner-circle.json")).expect("Unable to read champion");
+        let champion_bytes2 = &fs::read_to_string(format!("example_runs/2023-6-11/winner-line.json")).expect("Unable to read champion");
         gen = serde_json::from_str(champion_bytes).unwrap();
         gen2 = serde_json::from_str(champion_bytes2).unwrap();
     }else {
@@ -174,95 +174,109 @@ fn main() {
         serde_json::to_string(&champion[1]).unwrap(),
     )
     .expect("Unable to write file");
-    evaluate_champion(&champion, sub::func1, format!("example_runs/{}/powerfour.txt", time_stamp), false, vec![50.0; N_PARTICLES], vec![vec![-30.0,0.0]; N_PARTICLES]);
-    time_evaluation(&champion, sub::func1, 70.0, &vec![-30.0,0.0]);
+    println!("Powerfour");
+    evaluate_champion(&champion, sub::func1, format!("example_runs/{}/powerfour.txt", time_stamp), false, vec![70.0; N_PARTICLES], vec![vec![0.0,0.0]; N_PARTICLES]);
+    time_evaluation(&champion, sub::func1, 70.0, &vec![0.0,0.0]);
+    println!("Quadratic Sinus");
     evaluate_champion(&champion, sub::func2, format!("example_runs/{}/quadratic-sinus.txt", time_stamp), false, vec![70.0; N_PARTICLES], vec![vec![0.0,0.0]; N_PARTICLES]);
     time_evaluation(&champion, sub::func2, 70.0, &vec![0.0,0.0]);
-    evaluate_champion(&champion, sub::func3, format!("example_runs/{}/abs.txt", time_stamp), false, vec![40.0; N_PARTICLES], vec![vec![0.0,0.0]; N_PARTICLES]);
-    time_evaluation(&champion, sub::func3, 40.0, &vec![0.0,0.0]);
-    evaluate_champion(&champion, sub::func4, format!("example_runs/{}/x-squared.txt", time_stamp), false, vec![40.0; N_PARTICLES], vec![vec![-30.0,0.0]; N_PARTICLES]);
-    time_evaluation(&champion, sub::func4, 40.0, &vec![-30.0,0.0]);
+    println!("Abs");
+    evaluate_champion(&champion, sub::func3, format!("example_runs/{}/abs.txt", time_stamp), false, vec![70.0; N_PARTICLES], vec![vec![0.0,0.0]; N_PARTICLES]);
+    time_evaluation(&champion, sub::func3, 70.0, &vec![0.0,0.0]);
+    println!("Offset Sphere");
+    evaluate_champion(&champion, sub::func4, format!("example_runs/{}/x-squared.txt", time_stamp), false, vec![70.0; N_PARTICLES], vec![vec![0.0,0.0]; N_PARTICLES]);
+    time_evaluation(&champion, sub::func4, 70.0, &vec![0.0,0.0]);
     // evaluate_champion(&champion, FUNCTION_HANDLE_UNTRAINED1D, format!("example_runs1d/{}/abs_sin.txt", time_stamp), false, &max_dev);
     // time_evaluation(&champion, FUNCTION_HANDLE_UNTRAINED1D, &max_dev);    
-    evaluate_champion(&champion, FUNCTION_HANDLE_UNTRAINED, format!("example_runs/{}/x-abs+sin.txt", time_stamp), false, vec![20.0; N_PARTICLES], vec![vec![0.0,0.0]; N_PARTICLES]);
-    time_evaluation(&champion, FUNCTION_HANDLE_UNTRAINED, 20.0, &vec![0.0,0.0]);
+    println!("Abs + Sinus");
+    evaluate_champion(&champion, FUNCTION_HANDLE_UNTRAINED, format!("example_runs/{}/x-abs+sin.txt", time_stamp), false, vec![70.0; N_PARTICLES], vec![vec![0.0,0.0]; N_PARTICLES]);
+    time_evaluation(&champion, FUNCTION_HANDLE_UNTRAINED, 70.0, &vec![0.0,0.0]);
     // evaluate_champion(&champion, FUNCTION_HANDLE_HIMMELBLAU, format!("example_runs/{}/himmelblau.txt", time_stamp), false, &max_dev);
     // time_evaluation(&champion, FUNCTION_HANDLE_HIMMELBLAU, &max_dev);
-    evaluate_champion(&champion, FUNCTION_HANDLE_ROSENBROCK, format!("example_runs/{}/rosenbrock.txt", time_stamp), false, vec![20.0; N_PARTICLES], vec![vec![0.0,0.0]; N_PARTICLES]);
-    time_evaluation(&champion, FUNCTION_HANDLE_ROSENBROCK, 20.0, &vec![0.0,0.0]);
-    evaluate_champion(&champion, FUNCTION_HANDLE_RASTRIGIN, format!("example_runs/{}/rastringin.txt", time_stamp), false, vec![10.0; N_PARTICLES], vec![vec![0.0,0.0]; N_PARTICLES]);
-    time_evaluation(&champion, FUNCTION_HANDLE_RASTRIGIN, 10.0, &vec![0.0,0.0]);
+    println!("Rosenbrock");
+    evaluate_champion(&champion, FUNCTION_HANDLE_ROSENBROCK, format!("example_runs/{}/rosenbrock.txt", time_stamp), false, vec![70.0; N_PARTICLES], vec![vec![0.0,0.0]; N_PARTICLES]);
+    time_evaluation(&champion, FUNCTION_HANDLE_ROSENBROCK, 70.0, &vec![0.0,0.0]);
+    println!("Rastrigin");
+    evaluate_champion(&champion, FUNCTION_HANDLE_RASTRIGIN, format!("example_runs/{}/rastringin.txt", time_stamp), false, vec![70.0; N_PARTICLES], vec![vec![0.0,0.0]; N_PARTICLES]);
+    time_evaluation(&champion, FUNCTION_HANDLE_RASTRIGIN, 70.0, &vec![0.0,0.0]);
     
 }
 
-fn time_evaluation(champion: &Vec<Genome>,f: fn(&Vec<f32>) -> f32, radius: f32, center: &Vec<f32>){
-    let evaluations= 30;
+fn evaluate_wall_time(champion: &Vec<Genome>,f: fn(&Vec<f32>) -> f32, radius: f32, center: &Vec<f32>) -> WallTimeEval{
+    let evaluations= 10;
     let mut f_vals: Vec<f32>;
     let mut x_radius: Vec<f32>;
-    let step_vec: Vec<usize>;
+    let n_time_eval: usize = 30;
+    let mut step_vec= Vec::<usize>::with_capacity(n_time_eval);
     let mut x_vals: Vec<Vec<f32>>;
     // let durations: Vec<f32>;
-    let cumulative_duration: f32 = 0.0;
     let mut f_best_approx: f32 = f32::INFINITY;
     let mut approx_to_best: Vec<Vec<f32>> =  Vec::with_capacity(evaluations);
     let mut eval_results: Vec<Evaluation>;
-    let start = Instant::now();
-    let par_iter = (0..evaluations).into_par_iter().map(|_| evaluate_champion(&champion, f, "".to_string(), true,  vec![radius; N_PARTICLES], vec![center.clone() ; N_PARTICLES]));
-    eval_results = par_iter.collect::<Vec<Evaluation>>();
-    // f_vals = eval_results.iter().map(|a| a.fval.clone()).collect();
-    for _ in 0..2 {
-        x_vals = eval_results.iter().map(|a| a.x_min.clone()).collect();
-        x_radius = eval_results.iter().map(|a| a.radius.clone() + 0.1).collect();
-        let par_iter = (0..evaluations).into_par_iter().map(|_| evaluate_champion(&champion, f, "".to_string(), true,  x_radius.clone(), x_vals.clone()));
-        eval_results = par_iter.collect::<Vec<Evaluation>>();
-        }
-    f_vals = eval_results.iter().map(|a| a.fval.clone()).collect();
-    x_vals = eval_results.iter().map(|a| a.x_min.clone()).collect();
-    step_vec = eval_results.iter().map(|a| a.steps).collect();
-    // dbg!(&f_vals);
-    let total_time = start.elapsed().as_secs_f32();
-    // step_vec = eval_results.iter().map(|a| a.steps).collect();
-    // durations = eval_results.iter().map(|a| a.duration).collect();
-    // let total_time = durations.iter().sum::<f32>();
-    for i in 0..evaluations{
-        // let start = Instant::now();
-        // let f_val: f32;
-        // let x_min: Vec<f32>;
-        // let steps: usize;
-        // (f_val, x_min, steps)= evaluate_champion(&champion, f, "".to_string(), true,  radius, center );
-        // dbg!(&f_val);
-        // let duration = start.elapsed().as_secs_f32();
-        
-        if f_vals[i] < f_best_approx {
-            f_best_approx = f_vals[i];
-            approx_to_best.push(vec![cumulative_duration,f_best_approx])
-        }
-    }
-    let f_max = f_vals.iter().copied().fold(f32::NAN, f32::max);
-    let f_min = f_vals.iter().copied().fold(f32::NAN, f32::min);
-    // let average_time = durations.iter().sum::<f32>()/(evaluations as f32);
-    // let max_time = durations.iter().copied().fold(f32::NAN, f32::max);
     let mut x_min: Vec<f32> = Vec::with_capacity(DIMENSIONS);
     let mut x_min_worst: Vec<f32> = Vec::with_capacity(DIMENSIONS);
-    for (i, f_val) in f_vals.iter().enumerate(){
-        if f_val == &f_min {
-            x_min = x_vals[i].clone();
+    let mut f_val_results: Vec<f32> =  Vec::with_capacity(evaluations);
+    
+    let start = Instant::now();
+    for _ in 0..n_time_eval {
+        let par_iter = (0..evaluations).into_par_iter().map(|_| evaluate_champion(&champion, f, "".to_string(), true,  vec![radius; N_PARTICLES], vec![center.clone() ; N_PARTICLES]));
+        eval_results = par_iter.collect::<Vec<Evaluation>>();
+        // f_vals = eval_results.iter().map(|a| a.fval.clone()).collect();
+        for i in 0..2 {
+            x_vals = eval_results.iter().map(|a| a.x_min.clone()).collect();
+            x_radius = eval_results.iter().map(|a| a.radius.clone() + 0.1_f32.powi(i)).collect();
+            let par_iter = (0..evaluations).into_par_iter().map(|_| evaluate_champion(&champion, f, "".to_string(), true,  x_radius.clone(), x_vals.clone()));
+            eval_results = par_iter.collect::<Vec<Evaluation>>();
+            }
+        f_vals = eval_results.iter().map(|a| a.fval.clone()).collect();
+        x_vals = eval_results.iter().map(|a| a.x_min.clone()).collect();
+        step_vec.push(eval_results.iter().map(|a| a.steps).collect::<Vec<usize>>().iter().sum());
+        
+        let f_max = f_vals.iter().copied().fold(f32::NAN, f32::max);
+        let f_min = f_vals.iter().copied().fold(f32::NAN, f32::min);
+        f_val_results.push(f_min);
+        // let average_time = durations.iter().sum::<f32>()/(evaluations as f32);
+        // let max_time = durations.iter().copied().fold(f32::NAN, f32::max);
+        
+        for (i, f_val) in f_vals.iter().enumerate(){
+            if f_val == &f_min {
+                x_min = x_vals[i].clone();
+            }
+            if f_val == &f_max {
+                x_min_worst = x_vals[i].clone();
+            }
         }
-        if f_val == &f_max {
-            x_min_worst = x_vals[i].clone();
-        }
+        
+        
+    // dbg!(&f_vals);
     }
-    let average_steps = (step_vec.iter().sum::<usize>()) as f32/(evaluations as f32);
-    let median = median(&mut f_vals);
-    println!("Ran 500 iterations to find the minimum");
-    dbg!(approx_to_best);
-    println!("Total CPU time to find the minimum {}", total_time);
-    colour::green_ln!("Minimum has value {} ", f_min);
-    colour::yellow_ln!("Median of Minimum {} ", median);
-    colour::red_ln!("Wort minimum approximation {} ", f_max);
-    colour::cyan_ln!("Minimum location {:?} ", x_min);
-    colour::red_ln!("Worst minimum approximation location {:?} ", x_min_worst);
-    colour::grey_ln!("Took {} steps on average", average_steps)
+    let average_wall_time = start.elapsed().as_secs_f32()/32.0;
+    let f_min = f_val_results.iter().copied().fold(f32::NAN, f32::min);
+    let f_max = f_val_results.iter().copied().fold(f32::NAN, f32::max);
+    let median = median(&mut f_val_results);
+    let average_steps = (step_vec.iter().sum::<usize>()) as f32/(n_time_eval as f32);
+    
+    WallTimeEval { f_min, f_average: median, f_worst: f_max, x_best: x_min, x_worst: x_min_worst, walltime: average_wall_time, average_steps}
+}
+
+
+fn time_evaluation(champion: &Vec<Genome>,f: fn(&Vec<f32>) -> f32, radius: f32, center: &Vec<f32>){
+    let eval = evaluate_wall_time(champion, f , radius, center);
+    println!("Ran 30 iterations to find the minimum");
+    println!("Average total wall time to find the minimum {:.3} ms", eval.walltime*1000.0);
+    if eval.f_min.abs() < 0.1 {
+        colour::green_ln!("Minimum has value {:+.6e} ", eval.f_min);
+        colour::yellow_ln!("Median of Minimum {:+.6e} ", eval.f_average);
+        colour::red_ln!("Wort minimum approximation {:+.6e} ", eval.f_worst);
+    } else {
+        colour::green_ln!("Minimum has value {:.6} ", eval.f_min);
+        colour::yellow_ln!("Median of Minimum {:.6} ", eval.f_average);
+        colour::red_ln!("Wort minimum approximation {:.6} ", eval.f_worst);
+    }
+    
+    colour::cyan_ln!("Minimum location {:?} ", eval.x_best);
+    colour::red_ln!("Worst minimum approximation location {:?} ", eval.x_worst);
+    colour::grey_ln!("Took {} steps on average", eval.average_steps)
 }
 
 fn median(numbers: &mut [f32]) -> f32 {
@@ -297,6 +311,7 @@ fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f32>) -> f32, filepath: Strin
         x_guess : center[i].to_vec(),
         radius: radius[i],
         f_val: f32::INFINITY,
+        velocity: vec![0.0; DIMENSIONS],
         delta_fitness: f32::INFINITY,
         fitness_change_limited : 0.0,
         last_fitness: f32::INFINITY,
@@ -307,9 +322,11 @@ fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f32>) -> f32, filepath: Strin
     let mut set_of_sample_points: util::SetOfSamplesCircle;
     let mut f_vals: Vec<f32>;
     let mut f_vals_normalized: Vec<f32>;
+    let mut x_velocity_point: Vec<f32>;
     let mut evaluator_circle = MatrixRecurrentFabricator::fabricate(&net[0]).expect("didnt work");
     let mut evaluator_line = MatrixRecurrentFabricator::fabricate(&net[1]).expect("didnt work");
     let mut step = 0;
+    let mut steptotal = 0;
     let mut delta_fitness = f32::INFINITY;
     let mut radius_guess: f32 = 0.0;
     // let mut last_fitness = f32::INFINITY;
@@ -332,10 +349,31 @@ fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f32>) -> f32, filepath: Strin
                 // if all_xvals[n_particle].fitness_change_limited  >= - 0.0 {
                     set_of_sample_points = util::generate_samplepoint_2d_random_slice(&particle_pos[n_particle]);
                     f_vals = set_of_sample_points.coordinates.iter().enumerate().map(|(_, x)| f(x)).collect::<Vec<_>>();
-                    f_vals_normalized = normalise_vector(&f_vals);
-                    let input_values: Vec<f32> = [set_of_sample_points.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![(n_drill as f32)/(N_DRILL+N_OVERDRILL) as f32, (STEPS -step) as f32/STEPS as f32, 1.0, all_xvals[n_particle].fitness_change_limited]].concat();
-                    network_step(input_values, &mut evaluator_circle, &mut all_xvals[n_particle], &particle_pos[n_particle], step);
-                    vector_start  = all_xvals[n_particle].x_guess.clone();
+                    let mut i_min: usize = 0;
+                        for i in 0..SAMPLEPOINTS {
+                            if f_vals[i] < f_vals[i_min] {
+                                i_min = i;
+                            };
+                        }
+                        if step == 0 {
+                            for dim in 0..DIMENSIONS {
+                                all_xvals[n_particle].velocity[dim] = set_of_sample_points.coordinates[i_min][dim].clone() - all_xvals[n_particle].x_guess[dim];
+                            }
+                        }
+                        x_velocity_point = all_xvals[n_particle].x_guess.iter().enumerate().map(|(dim, x)| x + all_xvals[n_particle].velocity[dim]).collect::<Vec<f32>>();
+                        if step > 0 {
+                            if f(&set_of_sample_points.coordinates[i_min])< f(&x_velocity_point) {
+                                for dim in 0..DIMENSIONS {
+                                    all_xvals[n_particle].velocity[dim] = set_of_sample_points.coordinates[i_min][dim].clone() - all_xvals[n_particle].x_guess[dim];
+                                }
+                                x_velocity_point= all_xvals[n_particle].x_guess.iter().enumerate().map(|(dim, x)| x + all_xvals[n_particle].velocity[dim]).collect::<Vec<f32>>();
+                            }
+                        }
+                        vector_start = x_velocity_point;
+                    // f_vals_normalized = normalise_vector(&f_vals);
+                    // let input_values: Vec<f32> = [set_of_sample_points.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![(n_drill as f32)/(N_DRILL+N_OVERDRILL) as f32, (STEPS -step) as f32/STEPS as f32, 1.0, all_xvals[n_particle].fitness_change_limited]].concat();
+                    // network_step(input_values, &mut evaluator_circle, &mut all_xvals[n_particle], &particle_pos[n_particle], step);
+                    // vector_start  = all_xvals[n_particle].x_guess.clone();
                     vector_end = particle_pos[n_particle].center.clone();
                     if vector_start.iter().enumerate().all(|(i,x)| (vector_end[i]-x).abs() < 1e-8_f32) {
                         skiprest = true;
@@ -407,15 +445,16 @@ fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f32>) -> f32, filepath: Strin
                 let f_vals_string: String = all_xvals.iter().map( |i| i.f_val.to_string()).collect::<Vec<String>>().join(";");
                 let x_guess_string: String = x_guess_best.clone().into_iter().map(|i| i.to_string()).collect::<Vec<String>>().join(",");
                 let radius_string: String = radius_guess.to_string();
-                if let Err(e) = writeln!(file_write, "{coords};{fvals};{step};{x_val1};{radius}",coords =coordinates_string,fvals=f_vals_string, step=step, x_val1 =x_guess_string , radius = radius_string) {
+                if let Err(e) = writeln!(file_write, "{coords};{fvals};{step};{x_val1};{radius}",coords =coordinates_string,fvals=f_vals_string, step=steptotal, x_val1 =x_guess_string , radius = radius_string) {
                     eprintln!("Couldn't write to file: {}", e);
                 }
             } 
             step+=1;
+            steptotal+=1;
         }
     }
     let duration = start.elapsed().as_secs_f32();
-    let eval =  Evaluation { fval: f(&x_guess_best), x_min: x_guess_best, steps: step, duration: duration, radius:radius_guess };
+    let eval =  Evaluation { fval: f(&x_guess_best), x_min: x_guess_best, steps: steptotal, duration, radius:radius_guess };
     eval
 }
 
@@ -506,8 +545,9 @@ fn evaluate_on_testfunction(f: fn(&Vec<f32>) -> f32, y: f32, z:f32, evaluator_ci
         let mut f_vals: Vec<f32>;
         let mut f_vals_normalized: Vec<f32>;
         let mut step: usize;
+        let mut x_velocity_point: Vec<f32>;
         let mut delta_fitness = f32::INFINITY;
-        
+        let mut x_velocity_point: Vec<f32>;
         let mut particle_pos = vec![util::CircleGeneratorInput{
             dimensions:DIMENSIONS,
             samplepoints: SAMPLEPOINTS,
@@ -516,6 +556,7 @@ fn evaluate_on_testfunction(f: fn(&Vec<f32>) -> f32, y: f32, z:f32, evaluator_ci
         }; N_PARTICLES];
         let mut all_xvals = vec![AllXValsCircle{
             x_guess : center.to_vec(),
+            velocity: vec![0.0; DIMENSIONS],
             radius: radius,
             f_val: f32::INFINITY,
             delta_fitness: f32::INFINITY,
@@ -540,13 +581,34 @@ fn evaluate_on_testfunction(f: fn(&Vec<f32>) -> f32, y: f32, z:f32, evaluator_ci
                     // if all_xvals[n_particle].fitness_change_limited >= - 0.0 {   
                         let set_of_sample_points = util::generate_samplepoint_2d_random_slice(&particle_pos[n_particle]);
                         f_vals = set_of_sample_points.coordinates.iter().enumerate().map(|(_, x)| f(x).clone() +g(x, y, z)).collect::<Vec<_>>();
-                        f_vals_normalized = normalise_vector(&f_vals);
-                        let input_values: Vec<f32> = [set_of_sample_points.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![n_drill as f32/N_DRILL as f32, (STEPS -step) as f32/STEPS as f32, 1.0,all_xvals[n_particle].fitness_change_limited]].concat();
-                        network_step(input_values, evaluator_circle, &mut all_xvals[n_particle], &particle_pos[n_particle], step);
-                        if all_xvals[n_particle].x_guess.iter().any(|i| i.is_nan()) || all_xvals[n_particle].radius.is_nan() || f_vals.iter().any(|i| i.is_nan()) {
-                            return f32::INFINITY;
+                        let mut i_min: usize = 0;
+                        for i in 0..SAMPLEPOINTS {
+                            if f_vals[i] < f_vals[i_min] {
+                                i_min = i;
+                            };
                         }
-                        vector_start = all_xvals[n_particle].x_guess.clone();
+                        if step == 0 {
+                            for dim in 0..DIMENSIONS {
+                                all_xvals[n_particle].velocity[dim] = set_of_sample_points.coordinates[i_min][dim].clone() - all_xvals[n_particle].x_guess[dim];
+                            }
+                        }
+                        x_velocity_point = all_xvals[n_particle].x_guess.iter().enumerate().map(|(dim, x)| x + all_xvals[n_particle].velocity[dim]).collect::<Vec<f32>>();
+                        if step > 0 {
+                            if f(&set_of_sample_points.coordinates[i_min]) +g(&set_of_sample_points.coordinates[i_min], y, z) < f(&x_velocity_point) +g(&x_velocity_point, y, z) {
+                                for dim in 0..DIMENSIONS {
+                                    all_xvals[n_particle].velocity[dim] = set_of_sample_points.coordinates[i_min][dim].clone() - all_xvals[n_particle].x_guess[dim];
+                                }
+                                x_velocity_point= all_xvals[n_particle].x_guess.iter().enumerate().map(|(dim, x)| x + all_xvals[n_particle].velocity[dim]).collect::<Vec<f32>>();
+                            }
+                        }
+                        vector_start = x_velocity_point;
+                        // f_vals_normalized = normalise_vector(&f_vals);
+                        // let input_values: Vec<f32> = [set_of_sample_points.coordinates_normalised.clone(), f_vals_normalized.clone(), vec![n_drill as f32/N_DRILL as f32, (STEPS -step) as f32/STEPS as f32, 1.0,all_xvals[n_particle].fitness_change_limited]].concat();
+                        // network_step(input_values, evaluator_circle, &mut all_xvals[n_particle], &particle_pos[n_particle], step);
+                        // if all_xvals[n_particle].x_guess.iter().any(|i| i.is_nan()) || all_xvals[n_particle].radius.is_nan() || f_vals.iter().any(|i| i.is_nan()) {
+                        //     return f32::INFINITY;
+                        // }
+                        // vector_start = all_xvals[n_particle].x_guess.clone();
                         vector_end  = particle_pos[n_particle].center.clone();
                         if vector_start.iter().enumerate().all(|(i,x)| (vector_end[i]-x).abs() < 1e-8_f32) {
                             skiprest = true;

@@ -51,6 +51,7 @@ pub struct AllXVals {
 pub struct AllXValsCircle {
     pub radius: f32,
     pub x_guess: Vec<f32>,
+    pub velocity: Vec<f32>, 
     pub f_val: f32,
     pub delta_fitness: f32,
     pub fitness_change_limited: f32,
@@ -69,4 +70,15 @@ pub struct TestfunctionEval{
 pub struct OverallFitness{
     pub fitness: f32,
     pub fitnessvec: Vec<TestfunctionEval>
+}
+
+#[derive(Debug)]
+pub struct WallTimeEval{
+    pub f_min: f32,
+    pub f_average: f32,
+    pub f_worst: f32,
+    pub x_best: Vec<f32>,
+    pub x_worst: Vec<f32>,
+    pub walltime: f32,
+    pub average_steps: f32
 }
