@@ -196,7 +196,7 @@ fn main() {
 fn evaluate_fmin_progress(champion: &Vec<Genome>,f: fn(&Vec<f32>) -> f32, radius: f32, center: &Vec<f32>) -> Vec<FProgress>{
     let evaluations= 20;
     let mut x_radius: Vec<f32>;
-    let n_time_eval: usize = 30;
+    let n_time_eval: usize = 1;
     let mut x_vals: Vec<Vec<f32>>;
     let mut eval_results : Vec::<Evaluation>;
     let mut eval_results_continuous: Vec<FProgress> = Vec::<FProgress>::with_capacity(n_time_eval);
@@ -210,7 +210,7 @@ fn evaluate_fmin_progress(champion: &Vec<Genome>,f: fn(&Vec<f32>) -> f32, radius
             let tmp_eval = evaluate_champion(&champion, f, "".to_string(), true,  true, &mut eval_progress_continuous,radius_vec.clone(),center_vec.clone() );
             eval_results.push(tmp_eval);
         }
-        for i in 0..2 {
+        for i in 0..30 {
             x_vals = eval_results.iter().map(|a| a.x_min.clone()).collect();
             x_radius = eval_results.iter().map(|a| a.radius.clone() + 0.1_f32.powi(i)).collect();
             eval_results = Vec::<Evaluation>::with_capacity(evaluations);
@@ -260,7 +260,7 @@ fn evaluate_wall_time(champion: &Vec<Genome>,f: fn(&Vec<f32>) -> f32, radius: f3
         let par_iter = (0..evaluations).into_par_iter().map(|_| evaluate_champion(&champion, f, "".to_string(), true,  false, &mut vec![FProgress{n_evals: 0, f_min:f32::INFINITY}; 1], vec![radius; N_PARTICLES], vec![center.clone() ; N_PARTICLES]));
         eval_results = par_iter.collect::<Vec<Evaluation>>();
         // f_vals = eval_results.iter().map(|a| a.fval.clone()).collect();
-        for i in 0..2 {
+        for i in 0..10 {
             x_vals = eval_results.iter().map(|a| a.x_min.clone()).collect();
             x_radius = eval_results.iter().map(|a| a.radius.clone() + 0.1_f32.powi(i)).collect();
             let par_iter = (0..evaluations).into_par_iter().map(|_| evaluate_champion(&champion, f, "".to_string(), true,  false,&mut vec![FProgress{n_evals: 0, f_min:f32::INFINITY}; 1],x_radius.clone(), x_vals.clone()));
@@ -396,7 +396,7 @@ fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f32>) -> f32, filepath: Strin
             all_xvals[n_particle].fitness_change_limited = 0.0;
             
         }
-        while (step < STEPS) & (delta_fitness.abs() > 1e-10_f32) {
+        while (step < STEPS) & (delta_fitness.abs() > 1e-30_f32) {
             for n_particle in 0..N_PARTICLES {
                     set_of_sample_points = util::generate_samplepoint_2d_random_slice(&particle_pos[n_particle]);
                     f_vals = set_of_sample_points.coordinates.iter().enumerate().map(|(_, x)| f(x)).collect::<Vec<_>>();
@@ -424,7 +424,7 @@ fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f32>) -> f32, filepath: Strin
                         }
                         vector_start = x_velocity_point;
                     vector_end = particle_pos[n_particle].center.clone();
-                    if vector_start.iter().enumerate().all(|(i,x)| (vector_end[i]-x).abs() < 1e-8_f32) {
+                    if vector_start.iter().enumerate().all(|(i,x)| (vector_end[i]-x).abs() < 1e-30_f32) {
                         skiprest = true;
                         delta_fitness = 0.0;
                         all_xvals[n_particle].x_guess = vector_start.clone();
@@ -577,7 +577,7 @@ fn normalise_vector(vec: &Vec<f32>) -> Vec<f32> {
     let x_max = vec.iter().copied().fold(f32::NAN, f32::max);
     let x_min = vec.iter().copied().fold(f32::NAN, f32::min);
     let vec_normalized: Vec<f32>;
-    if x_max-x_min < 1e-22_f32 {
+    if x_max-x_min < 1e-30_f32 {
         vec_normalized = vec![1.0; vec.len()]
     } else {
         vec_normalized = vec.iter().enumerate().map(|(_, x)| (*x-x_min)/(x_max-x_min)).collect::<Vec<_>>();
