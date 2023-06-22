@@ -17,7 +17,7 @@ use set_genome::{Genome, Parameters, Structure, Mutations, activations::Activati
 use std::time::{Instant};
 
 const DIMENSIONS: usize = 2;
-const STEPS: usize = 20;
+const STEPS: usize = 7;
 const N_TRYS: usize = 3;
 const N_DRILL: usize = 1;
 const N_PARTICLES: usize = 2;
@@ -25,8 +25,8 @@ const N_OVERDRILL: usize = 0;
 const N_TESTFUNCTIONS: usize =6;
 const SAMPLEPOINTS: usize = 3;
 const POPULATION_SIZE: usize = 100;
-const GENERATIONS: usize = 25;
-const TRAINFROMRESULTS: bool=false;
+const GENERATIONS: usize = 0;
+const TRAINFROMRESULTS: bool=true;
 // const FUNCTION_HANDLE_UNTRAINED1D: fn(&Vec<f64>) -> f64 = |x|  x[0].abs() + 1.9* x[0].sin();
 const FUNCTION_HANDLE_UNTRAINED: fn(&Vec<f64>) -> f64 = |x|  (x[0]-3.14).powi(2) + (x[1]-2.72).powi(2)+ (3.0*x[0] +1.41).sin() + (4.0*x[1] -1.73).sin();
 // const FUNCTION_HANDLE_HIMMELBLAU: fn(&Vec<f64>) -> f64 = |x|  ((x[0]).powi(2) + x[1] - 11.0).powi(2)+ ((x[0]) + x[1].powi(2) - 7.0).powi(2);
@@ -171,7 +171,7 @@ fn main() {
 fn evaluate_fmin_progress(champion: &Vec<Genome>,f: fn(&Vec<f64>) -> f64, radius: f64, center: &Vec<f64>) -> Vec<FProgress>{
     let evaluations= 5;
     let mut x_radius: Vec<f64>;
-    let n_time_eval: usize = 2;
+    let n_time_eval: usize = 5;
     let mut x_vals: Vec<Vec<f64>>;
     let mut eval_results : Vec::<Evaluation>;
     let mut eval_progress_continuous : Vec::<FProgress>;
@@ -184,7 +184,7 @@ fn evaluate_fmin_progress(champion: &Vec<Genome>,f: fn(&Vec<f64>) -> f64, radius
             let tmp_eval = evaluate_champion(&champion, f, "".to_string(), true,  true, &mut eval_progress_continuous,radius_vec.clone(),center_vec.clone() );
             eval_results.push(tmp_eval);
         }
-        for i in 0..50 {
+        for i in 0..20 {
             eval_results.sort_unstable_by(|a, b| match (a.fval.is_nan(), b.fval.is_nan()) {
                 (true, true) => Ordering::Equal,
                 (true, false) => Ordering::Greater,
@@ -224,7 +224,7 @@ fn evaluate_fmin_progress(champion: &Vec<Genome>,f: fn(&Vec<f64>) -> f64, radius
 }
 
 fn evaluate_wall_time(champion: &Vec<Genome>,f: fn(&Vec<f64>) -> f64, radius: f64, center: &Vec<f64>) -> WallTimeEval{
-    let evaluations= 6;
+    let evaluations= 8;
     let mut f_vals: Vec<f64>;
     let mut x_radius: Vec<f64>;
     let n_time_eval: usize = 30;
@@ -240,7 +240,7 @@ fn evaluate_wall_time(champion: &Vec<Genome>,f: fn(&Vec<f64>) -> f64, radius: f6
         let par_iter = (0..evaluations).into_par_iter().map(|_| evaluate_champion(&champion, f, "".to_string(), true,  false, &mut vec![FProgress{n_evals: 0, f_min:f64::INFINITY, min_point:vec![0.0; DIMENSIONS]}; 1], vec![radius; evaluations], vec![center.clone() ; evaluations]));
         eval_results = par_iter.collect::<Vec<Evaluation>>();
         // f_vals = eval_results.iter().map(|a| a.fval.clone()).collect();
-        for i in 0..5 {
+        for i in 0..10 {
             x_vals = eval_results.iter().map(|a| a.x_min.clone()).collect();
             x_radius = eval_results.iter().map(|a| a.radius.clone() + 100.0*0.1_f64.powi(i)).collect();
             let par_iter = (0..evaluations).into_par_iter().map(|_| evaluate_champion(&champion, f, "".to_string(), true,  false,&mut vec![FProgress{n_evals: 0, f_min:f64::INFINITY, min_point:vec![0.0; DIMENSIONS]}; 1],x_radius.clone(), x_vals.clone()));
