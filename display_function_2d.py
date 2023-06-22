@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt, ticker, colors as colors
 import numpy as np
 from math import floor, ceil
 import os
+import ast
 
 MAXPLOTS_X = 4
 MAXPLOTS_Y = 5
@@ -85,8 +86,8 @@ def show_step(axs, function, step, df, slide):
     if step_total not in df.index:
         return None
     for point in range(samplepoints):
-        x_vals.append(df_view["x{}".format(point)][step_total])
-        fx_vals.append(df_view["f(x{})".format(point)][step_total])
+        x_vals.append(df_view["min_point"][step_total])
+        fx_vals.append(df_view["f_min"][step_total])
     ax = axs[floor(step/MAXPLOTS_X), step%MAXPLOTS_X]
     ax.set_title("Step {}".format(step_total))
     t = np.arange(min(x_vals), max(x_vals), (max(x_vals) - min(x_vals))/1000)
@@ -172,11 +173,11 @@ def show_progress (filepath, function, closeup =False, steps = False, logcontour
     ax = plt.subplot()
     x1 = []
     x2 = []
-    for x in df['XVal'].values:
-        x_parts = x.split(",")
+    for x in df['min_point'].values:
+        x_parts= ast.literal_eval(x)
         x1.append(float(x_parts[0]))
         x2.append(float(x_parts[1]))
-    xz = [function(x1[i], x2[i]) for i in range(len(df['XVal'].values))]
+    xz = [function(x1[i], x2[i]) for i in range(len(df['min_point'].values))]
 
     if closeup and function != rosenbrock:
         lims = [x1[-1]-5, x1[-1]+ 5, x2[-1]-5, x2[-1]+ 5]
@@ -212,38 +213,39 @@ def show_progress (filepath, function, closeup =False, steps = False, logcontour
         ax.plot(x1,x2, marker="o")
         ax.quiver(pos_x1, pos_x2, u/norm, v/norm, angles="xy", zorder=5, pivot="mid", scale=100)
         lendf= len(df) -1
-    ax.plot(x1[-1],x2[-1], marker="x", color="red")
-    df_last = df[df["Step"] == (len(df)-1)]
-    x_radius = df_last["radius"]
-    circle = plt.Circle((x1[-1], x2[-1]), x_radius, color='r', fill=False)
-    ax.add_patch(circle)
     if function == rastrigin:
         ax.plot(0,0, marker="x", color="lightgreen")
     if function == rosenbrock:
         ax.plot(1,1, marker="x", color="lightgreen")
+    ax.plot(x1[-1],x2[-1], marker="x", color="red")
+    df_last = df[df.index ==  (len(df)-1)]
+    # x_radius = df_last["radius"]
+    # circle = plt.Circle((x1[-1], x2[-1]), x_radius, color='r', fill=False)
+    # ax.add_patch(circle)
+    
     if closeup:
         plt.ylim(x2[-1]-5, x2[-1]+5)
         plt.xlim(x1[-1]-5,x1[-1]+5)
     plt.show()
 
-dir = r"example_runs\2023-6-11"
+dir = r"P:\Data\code\Rust-minimizer\function_minimizer\example_runs\2023-6-12"
 
-function_handle_dict = {"powerfour.txt": function_handle,
-                        "abs.txt": abs_function,
-                        "quadratic-sinus.txt": sin_square_function,
-                        "x-abs+sin.txt": x_abs_sin,
-                        "x-squared.txt": x_squared,
-                        "rastringin.txt": rastrigin,
-                        "rosenbrock.txt": rosenbrock}
+function_handle_dict = {"powerfour_approach.txt": function_handle,
+                        "abs_approach.txt": abs_function,
+                        "quadratic-sinus_approach.txt": sin_square_function,
+                        "x-abs+sin_approach.txt": x_abs_sin,
+                        "x-squared_approach.txt": x_squared,
+                        "rastrigin_approach.txt": rastrigin,
+                        "rosenbrock_approach.txt": rosenbrock}
 
 for filename in os.listdir(dir):
     if filename.endswith(".txt"): 
-        if filename == "abs.txt":
+        if filename == "abs_approach.txt":
             logcontours = False
         else:  
             logcontours = True
         if filename in function_handle_dict.keys():
             show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], steps = True, logcontours = logcontours)
-            show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], steps = True, closeup=True, logcontours = False)
+            show_progress(os.sep.join([dir,filename]), function_handle_dict[filename], steps = False, closeup=True, logcontours = False)
     else:
         continue
