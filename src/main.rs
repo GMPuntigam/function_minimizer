@@ -25,8 +25,8 @@ const N_OVERDRILL: usize = 0;
 const N_TESTFUNCTIONS: usize =6;
 const SAMPLEPOINTS: usize = 3;
 const POPULATION_SIZE: usize = 100;
-const GENERATIONS: usize = 0;
-const TRAINFROMRESULTS: bool=true;
+const GENERATIONS: usize = 25;
+const TRAINFROMRESULTS: bool=false;
 // const FUNCTION_HANDLE_UNTRAINED1D: fn(&Vec<f64>) -> f64 = |x|  x[0].abs() + 1.9* x[0].sin();
 const FUNCTION_HANDLE_UNTRAINED: fn(&Vec<f64>) -> f64 = |x|  (x[0]-3.14).powi(2) + (x[1]-2.72).powi(2)+ (3.0*x[0] +1.41).sin() + (4.0*x[1] -1.73).sin();
 // const FUNCTION_HANDLE_HIMMELBLAU: fn(&Vec<f64>) -> f64 = |x|  ((x[0]).powi(2) + x[1] - 11.0).powi(2)+ ((x[0]) + x[1].powi(2) - 7.0).powi(2);
@@ -125,7 +125,6 @@ fn main() {
     print!("Line net\n {}", Genome::dot(&champion[0]));
     let now = Utc::now();
     let time_stamp = format!("{year}-{month}-{day}", year = now.year(), month = now.month(), day = now.day());
-    // fs::try_exists(format!("example_runs/{}/", time_stamp)).is_err();
     fs::create_dir_all(format!("example_runs/{}/", time_stamp)).expect("Unable to create dir");
     fs::write(
         format!("example_runs/{}/winner-line.json", time_stamp),
@@ -162,8 +161,6 @@ fn main() {
     time_evaluation(&champion, FUNCTION_HANDLE_ACKLEY, format!("example_runs/{}/ackley_approach.txt", time_stamp), 70.0, &vec![0.0,0.0]);
     println!("Bukin");
     time_evaluation(&champion, FUNCTION_HANDLE_BUKIN6, format!("example_runs/{}/bukin_approach.txt", time_stamp), 70.0, &vec![0.0,0.0]);
-    // println!("Exp-test");
-    // time_evaluation(&champion, FUNCTION_HANDLE_EXP, format!("example_runs/{}/exp_test_approach.txt", time_stamp), 70.0, &vec![0.0,0.0]);
     
 
 }
@@ -199,27 +196,7 @@ fn evaluate_fmin_progress(champion: &Vec<Genome>,f: fn(&Vec<f64>) -> f64, radius
                 eval_results.push(tmp_eval);
             }
             }
-        // dbg!(&eval_progress_continuous);
-        // eval_results_continuous = vec![eval_results_continuous, eval_progress_continuous].concat();
     }
-    // eval_results_continuous.sort_unstable_by(|a, b|a.n_evals.partial_cmp(&b.n_evals).unwrap());
-    //     // f_vals = eval_results.iter().map(|a| a.fval.clone()).collect();
-    //     for i in 0..2 {
-    //         x_vals = eval_results.iter().map(|a| a.x_min.clone()).collect();
-    //         x_radius = eval_results.iter().map(|a| a.radius.clone() + 0.1_f64.powi(i)).collect();
-
-    //         eval_results = Vec::<Evaluation>::with_capacity(evaluations);
-    //         for _ in 0..evaluations {
-    //             let tmp_eval = evaluate_champion(&champion, f, "".to_string(), true,  true, eval_progress_continuous,vec![radius; N_PARTICLES], vec![center.clone() ; N_PARTICLES]);
-    //             eval_progress_continuous = tmp_eval.progress.clone();
-    //             eval_results.push(tmp_eval);
-    //         }
-    //         }
-    //     f_vals = eval_results.iter().map(|a| a.fval.clone()).collect();
-    //     x_vals = eval_results.iter().map(|a| a.x_min.clone()).collect();
-    
-    
-    // }
     eval_progress_continuous
 }
 
@@ -239,7 +216,6 @@ fn evaluate_wall_time(champion: &Vec<Genome>,f: fn(&Vec<f64>) -> f64, radius: f6
     for _ in 0..n_time_eval {
         let par_iter = (0..evaluations).into_par_iter().map(|_| evaluate_champion(&champion, f, "".to_string(), true,  false, &mut vec![FProgress{n_evals: 0, f_min:f64::INFINITY, min_point:vec![0.0; DIMENSIONS]}; 1], vec![radius; evaluations], vec![center.clone() ; evaluations]));
         eval_results = par_iter.collect::<Vec<Evaluation>>();
-        // f_vals = eval_results.iter().map(|a| a.fval.clone()).collect();
         for i in 0..10 {
             x_vals = eval_results.iter().map(|a| a.x_min.clone()).collect();
             x_radius = eval_results.iter().map(|a| a.radius.clone() + 100.0*0.1_f64.powi(i)).collect();
@@ -253,8 +229,6 @@ fn evaluate_wall_time(champion: &Vec<Genome>,f: fn(&Vec<f64>) -> f64, radius: f6
         let f_max = f_vals.iter().copied().fold(f64::NAN, f64::max);
         let f_min = f_vals.iter().copied().fold(f64::NAN, f64::min);
         f_val_results.push(f_min);
-        // let average_time = durations.iter().sum::<f64>()/(evaluations as f64);
-        // let max_time = durations.iter().copied().fold(f64::NAN, f64::max);
         
         for (i, f_val) in f_vals.iter().enumerate(){
             if f_val == &f_min {
@@ -281,7 +255,6 @@ fn evaluate_wall_time(champion: &Vec<Genome>,f: fn(&Vec<f64>) -> f64, radius: f6
 fn time_evaluation(champion: &Vec<Genome>,f: fn(&Vec<f64>) -> f64,filepath: String, radius: f64, center: &Vec<f64>){
     let eval = evaluate_wall_time(champion, f , radius, center);
     let eval_progress = evaluate_fmin_progress(champion, f , radius, center);
-    // dbg!(eval_progress);
     let contents = String::from(format!("n_eval;f_min;min_point\n"));
         fs::write(filepath.clone(), contents).expect("Unable to write file");
     let mut file_write = OpenOptions::new()
@@ -325,14 +298,6 @@ fn median(numbers: &mut [f64]) -> f64 {
 
 fn evaluate_champion(net: &Vec<Genome>, f: fn(&Vec<f64>) -> f64, _filepath: String, _timeonly: bool, _log_f_vals: bool, log_of_f_vals: &mut Vec<FProgress>, radius: Vec<f64>, center: Vec<Vec<f64>>) -> Evaluation {
     let start = Instant::now();
-    // if !timeonly {
-    //     let contents = String::from(format!(";Step;XVal;radius\n"));
-    //     let mut sampleheader = util::generate_sampleheader(N_PARTICLES,DIMENSIONS);
-    //     sampleheader.push_str(&contents);
-    //     fs::write(filepath.clone(), sampleheader).expect("Unable to write file");
-
-    // }
-
     let mut particle_pos = (0..radius.len()).enumerate().map(|(_,i)| util::CircleGeneratorInput{
         dimensions:DIMENSIONS,
         samplepoints: SAMPLEPOINTS,
